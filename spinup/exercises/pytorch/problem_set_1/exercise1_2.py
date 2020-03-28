@@ -76,7 +76,7 @@ class MLPGaussianActor(nn.Module):
         (Make sure it's trainable!)
         """
         log_std = -0.5 * np.ones(act_dim, dtype=np.float32)
-        self.log_std = torch.nn.Parameter(torch.as_tensor(log_std))
+        self.log_std = torch.nn.Parameter(torch.as_tensor(log_std), requires_grad=True)
         self.mu_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
 
         pass 
