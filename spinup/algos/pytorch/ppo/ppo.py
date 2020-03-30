@@ -234,7 +234,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         loss_pi = -(torch.min(ratio * adv, clip_adv)).mean()
 
         embed()
-        
+
         # Useful extra info
         approx_kl = (logp_old - logp).mean().item()
         ent = pi.entropy().mean().item()
@@ -301,6 +301,18 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
             a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
+
+            ########
+
+            print("###################")
+            print("Embedding in main loop.")
+            print("###################")
+            embed()
+
+            ########
+
+
+
 
             next_o, r, d, _ = env.step(a)
             ep_ret += r
