@@ -107,7 +107,7 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
     return get_action
 
 
-def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True, sim_render=False):
+def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
 
     assert env is not None, \
         "Environment not found!\n\n It looks like the environment wasn't saved, " + \
@@ -124,10 +124,6 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True, 
 
         a = get_action(o)
         o, r, d, _ = env.step(a)
-
-        if sim_render:
-            image = env.sim.render(600,600, camera_name='frontview')
-            image_list.append(image)
 
         ep_ret += r
         ep_len += 1
