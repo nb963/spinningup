@@ -147,7 +147,7 @@ def render_episode(env, get_action, max_ep_len=None):
         "and we can't run the agent in it. :( \n\n Check out the readthedocs " + \
         "page on Experiment Outputs for how to handle this situation."
 
-    o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+    o, r, done, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
 
     # Create an image list. 
     image_list = []
