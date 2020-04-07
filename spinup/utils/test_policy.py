@@ -107,7 +107,7 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
     return get_action
 
 
-def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
+def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True, sim_render=False):
 
     assert env is not None, \
         "Environment not found!\n\n It looks like the environment wasn't saved, " + \
@@ -116,6 +116,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
 
     logger = EpochLogger()
     o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+
     while n < num_episodes:
         if render:
             env.render()
@@ -123,6 +124,11 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
 
         a = get_action(o)
         o, r, d, _ = env.step(a)
+
+        if sim_render:
+            image = env.sim.render(600,600, camera_name='frontview')
+            image_list.append(image)
+
         ep_ret += r
         ep_len += 1
 
@@ -136,6 +142,33 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
     logger.log_tabular('EpLen', average_only=True)
     logger.dump_tabular()
 
+def render_episode(env, get_action, max_ep_len=None):
+
+    # Function to render the episode using the simulation renderer.
+
+    assert env is not None, \
+        "Environment not found!\n\n It looks like the environment wasn't saved, " + \
+        "and we can't run the agent in it. :( \n\n Check out the readthedocs " + \
+        "page on Experiment Outputs for how to handle this situation."
+
+    o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+
+    # Create an image list. 
+    image_list = []
+    image = env.sim.render(600,600, camera_name='frontview')
+    image_list.append(image)
+
+    while not(done) and ep_len<=max_ep_len:
+        a = get_action(o)
+        o, r, done, _ = env.step(a)
+
+        image = env.sim.render(600,600, camera_name='frontview')
+        image_list.append(image)
+
+        ep_ret += r
+        ep_len += 1
+
+    return image_list
 
 if __name__ == '__main__':
     import argparse
