@@ -151,14 +151,14 @@ def render_episode(env, get_action, max_ep_len=None):
 
     # Create an image list. 
     image_list = []
-    image = env.sim.render(600,600, camera_name='frontview')
+    image = np.flipud(env.sim.render(600,600, camera_name='frontview'))
     image_list.append(image)
 
     while not(done):
         a = get_action(o)
         o, r, done, _ = env.step(a)
 
-        image = env.sim.render(600,600, camera_name='frontview')
+        image = np.flipud(env.sim.render(600,600, camera_name='frontview'))
         image_list.append(image)
 
         ep_ret += r
