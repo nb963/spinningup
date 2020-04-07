@@ -154,7 +154,7 @@ def render_episode(env, get_action, max_ep_len=None):
     image = env.sim.render(600,600, camera_name='frontview')
     image_list.append(image)
 
-    while not(done) and ep_len<=max_ep_len:
+    while not(done):
         a = get_action(o)
         o, r, done, _ = env.step(a)
 
