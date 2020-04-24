@@ -214,9 +214,8 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     env = env_fn()
     obs_dim = env.observation_space.shape
 
-    # CHANGE: Probably need to change this... 
     act_dim = env.action_space.shape
-    # CHANGE: Change the actor critic block to give us hierarchical policy wrapped up. 
+    # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
     # Create actor-critic module
     ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
 
@@ -235,19 +234,28 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     def compute_loss_pi(data):
 
         # Don't need to change this. 
-        obs, act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
+        obs, action_tuple, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
 
         # Policy loss
         # CHANGE: Don't need to change this code itself, but rather need to change forward of the actor critic policy to implement log probability correctly. 
-        pi, logp = ac.pi(obs, act)
+        # Now that we have transition from the buffer, we need to evaluate the likelihood of this action under the current estimate of the policy. 
+        # PPO uses both the log probability under the old policy and the new policy to do this. 
+        # This ac.pi(obs, act) call below just evaluates the logprobability and gets the distribution for the current policy with the previous action
+        # Must create an equivalent for the hierarchical policy to get the logprobability of hierarchical actions as well.
+
+        # CHANGED from:
+        # pi, logp = ac.pi(obs, action_tuple)
+        # CHANGED to: 
+        pi, b_pi, z_pi, logp = ac.evaluate_logprob(obs, action_tuple)
+        
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * adv
         loss_pi = -(torch.min(ratio * adv, clip_adv)).mean()
 
-        # embed()
-
         # Useful extra info
         approx_kl = (logp_old - logp).mean().item()
+
+        # CHANGE: NOTE: This is entropy of the low level policy distribution. Since this is only used for logging and not training, this is fine. 
         ent = pi.entropy().mean().item()
         clipped = ratio.gt(1+clip_ratio) | ratio.lt(1-clip_ratio)
         clipfrac = torch.as_tensor(clipped, dtype=torch.float32).mean().item()
@@ -318,7 +326,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         for t in range(local_steps_per_epoch):
 
             # CHANGED: Firstly, make sure the policy class implements actions as a tuple of a, z, b, and joint log probability of these. 
-            action_tuple, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
+            action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
             # CHANGED: Now remember, the action is a tuple of a, z, b. So take a step in the low level environment with the low-level action. 
             next_o, r, d, _ = env.step(action_tuple[0])
 
@@ -327,7 +335,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
             # save and log
             # CHANGED: Saving the action tuple in the buffer instead of just the action..
-            buf.store(o, action_tuple, r, v, logp)
+            buf.store(o, action_tuple, r, v, logp_tuple)
             logger.store(VVals=v)
             
             # Update obs (critical!)
@@ -395,7 +403,13 @@ if __name__ == '__main__':
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    ppo(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
-        seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+    # ppo(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
+    #     ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    #     seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+    #     logger_kwargs=logger_kwargs)
+
+    # CHANGED: 
+    ppo(lambda : gym.make(args.env), actor_critic=core.HierarchicalActorCritic,
+    ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+    logger_kwargs=logger_kwargs)

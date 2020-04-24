@@ -161,7 +161,6 @@ class HierarchicalActorCritic(nn.Module):
             logp_a = self.pi._log_prob_from_distribution(pi, a)
             v = self.v(obs)
 
-
             latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
             latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
 
@@ -172,14 +171,33 @@ class HierarchicalActorCritic(nn.Module):
             latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, latent_z)
 
         # return a.numpy(), v.numpy(), logp_a.numpy()
-
         action_tuple = (a.numpy(), latent_b.numpy(), latent_z.numpy())
         logprobability_tuple = (logp_a.numpy(), latent_b_logprobabilitity.numpy(), latent_z_logprobabilitity.numpy())
 
-        return action_tuple, v.numpy(), logprobability_tuple
+        total_logprobabilities = logp_a.numpy() + latent_b_logprobabilitity.sum().numpy() + latent_z_logprobabilitity.sum().numpy()
+
+        # return action_tuple, v.numpy(), logprobability_tuple
+        return action_tuple, v.numpy(), total_logprobabilities
 
     def act(self, obs):
         return self.step(obs)[0]
+
+    def evaluate_logprob(self, obs, action_tuple):
+
+        # Get the distributions from the observation.
+        pi = self.pi._distribution(obs)
+        latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
+        latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
+
+        # Get logprobabilities. 
+        logp_a = self.pi._log_prob_from_distribution(pi, action_tuple[0])
+        latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, action_tuple[1])
+        latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, action_tuple[2])
+
+        total_logprobabilities = logp_a.numpy() + latent_b_logprobabilitity.sum().numpy() + latent_z_logprobabilitity.sum().numpy()
+
+        return pi, latent_b_policy_distribution, latent_z_policy_distribution, total_logprobabilities
+
 
 
 
