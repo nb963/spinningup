@@ -133,3 +133,53 @@ class MLPActorCritic(nn.Module):
 
     def act(self, obs):
         return self.step(obs)[0]
+
+class HierarchicalActorCritic(nn.Module):
+
+    def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=64):
+
+        super.__init__()
+        obs_dim = observation_space.shape[0]
+
+        # policy builder depends on action space
+        if isinstance(action_space, Box):
+            self.pi = MLPGaussianActor(obs_dim, action_space.shape[0], hidden_sizes, activation)
+        elif isinstance(action_space, Discrete):
+            self.pi = MLPCategoricalActor(obs_dim, action_space.n, hidden_sizes, activation)
+
+        # build value function
+        self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
+
+        # Build latent z policy and latent b policy... 
+        self.latent_b_policy = MLPCategoricalActor(obs_dim, 1, hidden_sizes, activation)
+        self.latent_z_policy = MLPGaussianActor(obs_dim, latent_z_dimension, hidden_sizes, activation)
+
+    def step(self, obs):
+        with torch.no_grad():
+            pi = self.pi._distribution(obs)
+            a = pi.sample()
+            logp_a = self.pi._log_prob_from_distribution(pi, a)
+            v = self.v(obs)
+
+
+            latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
+            latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
+
+            latent_b = latent_b_policy_distribution.sample()
+            latent_z = latent_z_policy_distribution.sample()
+
+            latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, latent_b)
+            latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, latent_z)
+
+        # return a.numpy(), v.numpy(), logp_a.numpy()
+
+        action_tuple = (a.numpy(), latent_b.numpy(), latent_z.numpy())
+        logprobability_tuple = (logp_a.numpy(), latent_b_logprobabilitity.numpy(), latent_z_logprobabilitity.numpy())
+
+        return action_tuple, v.numpy(), logprobability_tuple
+
+    def act(self, obs):
+        return self.step(obs)[0]
+
+
+
