@@ -138,7 +138,7 @@ class HierarchicalActorCritic(nn.Module):
 
     def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=64):
 
-        super.__init__()
+        super().__init__()
         obs_dim = observation_space.shape[0]
 
         # policy builder depends on action space
