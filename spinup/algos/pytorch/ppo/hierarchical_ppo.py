@@ -20,7 +20,11 @@ class PPOBuffer:
         self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
 
         # CHANGE: Probably need to make this a more generic data structure to handle tuples. 
-        self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
+        # self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
+
+        # CHANGED: Making this a list (of arbitrary elements) of length = size. 
+        # Since the buffer object itself is just length size for a particular epoch.
+        self.act_buf = [[] for i in range(size)]
 
         self.adv_buf = np.zeros(size, dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
