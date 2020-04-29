@@ -267,8 +267,10 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
 
         # CHANGED from:
         # pi, logp = ac.pi(obs, action_tuple)
-        # CHANGED to: 
-        pi, b_pi, z_pi, logp = ac.evaluate_logprob(obs, action_tuple)
+        # Remember, action_tuple is not just a single datapoint. It is an array of datapoints containing action tuples. 
+        # Modify this to compute log probabilities over the batch.
+        embed()
+        pi, b_pi, z_pi, logp = ac.evaluate_batch_logprob(obs, action_tuple)
         
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * adv

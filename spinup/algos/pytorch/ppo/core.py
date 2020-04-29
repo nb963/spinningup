@@ -182,7 +182,7 @@ class HierarchicalActorCritic(nn.Module):
     def act(self, obs):
         return self.step(obs)[0]
 
-    def evaluate_logprob(self, obs, action_tuple):
+    def evaluate_batch_logprob(self, obs, action_tuple):
 
         # Get the distributions from the observation.
         pi = self.pi._distribution(obs)
