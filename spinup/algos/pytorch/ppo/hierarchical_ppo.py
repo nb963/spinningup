@@ -41,8 +41,11 @@ class PPOBuffer:
         assert self.ptr < self.max_size     # buffer has to have room so you can store
         self.obs_buf[self.ptr] = obs
 
-        # CHANGE: May possibly need to change this. 
-        self.act_buf[self.ptr] = act
+        # CHANGE: May possibly need to change this.   
+        # CHANGED: Just need to torchify these actions before storing them. 
+        # What we need to worry about is... torch taking up GPU space! Instead, storing them in normal RAM maybe better? 
+        torch_act = [torch.as_tensor(x, dtype=torch.float32) for x in act]
+        self.act_buf[self.ptr] = torch_act
 
         self.rew_buf[self.ptr] = rew
         self.val_buf[self.ptr] = val
@@ -96,14 +99,19 @@ class PPOBuffer:
 
         # Two options / ways to go about this - 
         # 1) Torchify everything here, and then store it in the same dictionary form. 
-        # 2) Modify how data is stored. Instead of have it store an action tuple, make it explicitly store separate components of actions explicitly.
-        embed()
-
+        # 2) Modify how data is stored. Instead of have it store an action tuple, make it explicitly store separate components of actions explicitly.       
+        
+        # Choose the first option. 
+        # Assume the actions are torchified, and now torchify everything else. 
         return_dictionary = {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items() if k != 'act'}
+        # Now add the actions to the dictionary. 
+        return_dictionary['act'] = data['act']
 
-        # Recreate dictionary with torch tensors for everything. 
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
+        # # Recreate dictionary with torch tensors for everything. 
+        # return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
+        # Now return the return_dictionary. 
+        return return_dictionary
 
 def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
