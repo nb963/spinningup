@@ -200,7 +200,8 @@ class HierarchicalActorCritic(nn.Module):
         latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, batched_latent_b)
         latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, batched_latent_z)
 
-        total_logprobabilities = logp_a.numpy() + latent_b_logprobabilitity.sum().numpy() + latent_z_logprobabilitity.sum().numpy()
+        total_logprobabilities = logp_a + latent_b_logprobabilitity + latent_z_logprobabilitity
+        embed()
 
         return pi, latent_b_policy_distribution, latent_z_policy_distribution, total_logprobabilities
 
