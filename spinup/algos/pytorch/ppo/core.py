@@ -184,15 +184,21 @@ class HierarchicalActorCritic(nn.Module):
 
     def evaluate_batch_logprob(self, obs, action_tuple):
 
+        # Get batch of aciton tuples:
+        batched_lowlevel_actions = torch.cat([x[0].unsqueeze(0) for x in action_tuple],dim=0)
+        batched_latent_b = torch.cat([x[1].unsqueeze(0) for x in action_tuple],dim=0)
+        batched_latent_z = torch.cat([x[2].unsqueeze(0) for x in action_tuple],dim=0)
+
+
         # Get the distributions from the observation.
         pi = self.pi._distribution(obs)
         latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
         latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
 
         # Get logprobabilities. 
-        logp_a = self.pi._log_prob_from_distribution(pi, action_tuple[0])
-        latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, action_tuple[1])
-        latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, action_tuple[2])
+        logp_a = self.pi._log_prob_from_distribution(pi, batched_lowlevel_actions)
+        latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, batched_latent_b)
+        latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, batched_latent_z)
 
         total_logprobabilities = logp_a.numpy() + latent_b_logprobabilitity.sum().numpy() + latent_z_logprobabilitity.sum().numpy()
 
