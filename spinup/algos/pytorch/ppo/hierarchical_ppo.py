@@ -89,10 +89,20 @@ class PPOBuffer:
         # the next two lines implement the advantage normalization trick
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
         self.adv_buf = (self.adv_buf - adv_mean) / adv_std
+
+        # The next step creates 
         data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
                     adv=self.adv_buf, logp=self.logp_buf)
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
+        # Two options / ways to go about this - 
+        # 1) Torchify everything here, and then store it in the same dictionary form. 
+        # 2) Modify how data is stored. Instead of have it store an action tuple, make it explicitly store separate components of actions explicitly.
+        embed()
+
+        return_dictionary = {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items() if k != 'act'}
+
+        # Recreate dictionary with torch tensors for everything. 
+        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
 
 def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwargs=dict(), seed=0, 
