@@ -107,7 +107,7 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
 
     return get_action
 
-def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
+def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True, hierarchical=False):
 
     assert env is not None, \
         "Environment not found!\n\n It looks like the environment wasn't saved, " + \
@@ -123,7 +123,10 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
             time.sleep(1e-3)
 
         a = get_action(o)  
-        embed()     
+
+        if hierarchical: 
+            a = a[0] 
+            
         o, r, d, _ = env.step(a)
 
         ep_ret += r
@@ -139,7 +142,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
     logger.log_tabular('EpLen', average_only=True)
     logger.dump_tabular()
 
-def render_episode(env, get_action, max_ep_len=None):
+def render_episode(env, get_action, max_ep_len=None, hierarchical=False):
 
     # Function to render the episode using the simulation renderer.
 
@@ -157,7 +160,10 @@ def render_episode(env, get_action, max_ep_len=None):
 
     while not(done):
         a = get_action(o)
-        embed()
+        
+        if hierarchical: 
+            a = a[0] 
+
         o, r, done, _ = env.step(a)
 
         image = np.flipud(env.sim.render(600,600, camera_name='frontview'))
