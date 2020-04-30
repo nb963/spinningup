@@ -7,6 +7,7 @@ import torch
 from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
 import numpy as np
+from IPython import embed
 
 def load_policy_and_env(fpath, itr='last', deterministic=False):
     """
@@ -106,7 +107,6 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
 
     return get_action
 
-
 def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
 
     assert env is not None, \
@@ -122,7 +122,8 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
             env.render()
             time.sleep(1e-3)
 
-        a = get_action(o)
+        a = get_action(o)  
+        embed()     
         o, r, d, _ = env.step(a)
 
         ep_ret += r
