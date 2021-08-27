@@ -222,3 +222,22 @@ class HierarchicalRecurrentActorCritic(HierarchicalActorCritic):
     
         # Since we are skipping creating MLP actors in the super init now, actually create the appropriate LSTM Policies.
 
+    def step(obs):
+
+        # Overall pipeline of this should really be similar to latent_policy_rollout that we have in TVI.
+        # I.e. feed observation to the latent policy first, get the b and z. 
+        # Now feed this z and the obs to the low level policy, create distribution, sample low level action.
+
+        with torch.no_grad():
+            
+            # Now choose Z and b first, before we choose anything else..
+            latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
+            latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
+
+            latent_b = latent_b_policy_distribution.sample()
+            latent_z = latent_z_policy_distribution.sample()
+
+            latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, latent_b)
+            latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, latent_z)
+
+    

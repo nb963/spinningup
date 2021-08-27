@@ -18,7 +18,14 @@ class PPOBuffer:
 
     def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
         self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
-        self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
+
+        # CHANGE: Probably need to make this a more generic data structure to handle tuples. 
+        # self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
+
+        # CHANGED: Making this a list (of arbitrary elements) of length = size. 
+        # Since the buffer object itself is just length size for a particular epoch.
+        self.act_buf = [[] for i in range(size)]
+
         self.adv_buf = np.zeros(size, dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.ret_buf = np.zeros(size, dtype=np.float32)
@@ -33,7 +40,13 @@ class PPOBuffer:
         """
         assert self.ptr < self.max_size     # buffer has to have room so you can store
         self.obs_buf[self.ptr] = obs
-        self.act_buf[self.ptr] = act
+
+        # CHANGE: May possibly need to change this.   
+        # CHANGED: Just need to torchify these actions before storing them. 
+        # What we need to worry about is... torch taking up GPU space! Instead, storing them in normal RAM maybe better? 
+        torch_act = [torch.as_tensor(x, dtype=torch.float32) for x in act]
+        self.act_buf[self.ptr] = torch_act
+
         self.rew_buf[self.ptr] = rew
         self.val_buf[self.ptr] = val
         self.logp_buf[self.ptr] = logp
@@ -79,16 +92,32 @@ class PPOBuffer:
         # the next two lines implement the advantage normalization trick
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
         self.adv_buf = (self.adv_buf - adv_mean) / adv_std
+
+        # The next step creates 
         data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
                     adv=self.adv_buf, logp=self.logp_buf)
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
+        # Two options / ways to go about this - 
+        # 1) Torchify everything here, and then store it in the same dictionary form. 
+        # 2) Modify how data is stored. Instead of have it store an action tuple, make it explicitly store separate components of actions explicitly.       
+        
+        # Choose the first option. 
+        # Assume the actions are torchified, and now torchify everything else. 
+        return_dictionary = {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items() if k != 'act'}
+        # Now add the actions to the dictionary. 
+        return_dictionary['act'] = data['act']
 
+        # # Recreate dictionary with torch tensors for everything. 
+        # return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
-def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
+        # Now return the return_dictionary. 
+        return return_dictionary
+
+def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
         target_kl=0.01, logger_kwargs=dict(), save_freq=10):
+    
     """
     Proximal Policy Optimization (by clipping), 
 
@@ -207,8 +236,9 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Instantiate environment
     env = env_fn()
     obs_dim = env.observation_space.shape
-    act_dim = env.action_space.shape
 
+    act_dim = env.action_space.shape
+    # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
     # Create actor-critic module
     ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
 
@@ -225,18 +255,32 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Set up function for computing PPO policy loss
     def compute_loss_pi(data):
-        obs, act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
+
+        # Don't need to change this. 
+        obs, action_tuple, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
 
         # Policy loss
-        pi, logp = ac.pi(obs, act)
+        # CHANGE: Don't need to change this code itself, but rather need to change forward of the actor critic policy to implement log probability correctly. 
+        # Now that we have transition from the buffer, we need to evaluate the likelihood of this action under the current estimate of the policy. 
+        # PPO uses both the log probability under the old policy and the new policy to do this. 
+        # This ac.pi(obs, act) call below just evaluates the logprobability and gets the distribution for the current policy with the previous action
+        # Must create an equivalent for the hierarchical policy to get the logprobability of hierarchical actions as well.
+
+        # CHANGED from:
+        # pi, logp = ac.pi(obs, action_tuple)
+        # Remember, action_tuple is not just a single datapoint. It is an array of datapoints containing action tuples. 
+        # Modify this to compute log probabilities over the batch.
+
+        pi, b_pi, z_pi, logp = ac.evaluate_batch_logprob(obs, action_tuple)
+        
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * adv
         loss_pi = -(torch.min(ratio * adv, clip_adv)).mean()
 
-        # embed()
-
         # Useful extra info
         approx_kl = (logp_old - logp).mean().item()
+
+        # CHANGE: NOTE: This is entropy of the low level policy distribution. Since this is only used for logging and not training, this is fine. 
         ent = pi.entropy().mean().item()
         clipped = ratio.gt(1+clip_ratio) | ratio.lt(1-clip_ratio)
         clipfrac = torch.as_tensor(clipped, dtype=torch.float32).mean().item()
@@ -250,7 +294,12 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         return ((ac.v(obs) - ret)**2).mean()
 
     # Set up optimizers for policy and value function
-    pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
+
+    # CHANGED: Use all parameters. 
+    # Can't just use the ac.parameters(), because we need separate optimizers for the latent and low-level policy optimizers. 
+    # pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
+    parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
+    pi_optimizer = Adam(parameter_list, lr=pi_lr)
     vf_optimizer = Adam(ac.v.parameters(), lr=vf_lr)
 
     # Set up model saving
@@ -300,15 +349,18 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
 
+            # CHANGED: Firstly, make sure the policy class implements actions as a tuple of a, z, b, and joint log probability of these. 
+            action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
+            # CHANGED: Now remember, the action is a tuple of a, z, b. So take a step in the low level environment with the low-level action. 
+            next_o, r, d, _ = env.step(action_tuple[0])
 
-            next_o, r, d, _ = env.step(a)
             ep_ret += r
             ep_len += 1
 
             # save and log
-            buf.store(o, a, r, v, logp)
+            # CHANGED: Saving the action tuple in the buffer instead of just the action..
+            buf.store(o, action_tuple, r, v, logp_tuple)
             logger.store(VVals=v)
             
             # Update obs (critical!)
@@ -376,7 +428,13 @@ if __name__ == '__main__':
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    ppo(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
-        seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+    # ppo(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
+    #     ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    #     seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+    #     logger_kwargs=logger_kwargs)
+
+    # CHANGED: 
+    hierarchical_ppo(lambda : gym.make(args.env), actor_critic=core.HierarchicalActorCritic,
+    ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+    logger_kwargs=logger_kwargs)
