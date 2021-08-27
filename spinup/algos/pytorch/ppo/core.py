@@ -150,17 +150,25 @@ class HierarchicalActorCritic(nn.Module):
         # build value function
         self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
 
-        # Build latent z policy and latent b policy... 
-        self.latent_b_policy = MLPCategoricalActor(obs_dim, 1, hidden_sizes, activation)
-        self.latent_z_policy = MLPGaussianActor(obs_dim, latent_z_dimension, hidden_sizes, activation)
+        if isinstance(self, HierarchicalActorCritic):
+            # Build latent z policy and latent b policy... 
+            self.latent_b_policy = MLPCategoricalActor(obs_dim, 1, hidden_sizes, activation)
+            self.latent_z_policy = MLPGaussianActor(obs_dim, latent_z_dimension, hidden_sizes, activation)
 
     def step(self, obs):
         with torch.no_grad():
+
+            # Constructs distributions from observation.
             pi = self.pi._distribution(obs)
+            # Samples action from said distribution.
             a = pi.sample()
+            # Also computes probability of action.
             logp_a = self.pi._log_prob_from_distribution(pi, a)
+            
+            # Get critic value from current state.
             v = self.v(obs)
 
+            # Now also .. choose z's? This doesn't make sense, why is this after the a selection?             
             latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
             latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
 
@@ -205,6 +213,12 @@ class HierarchicalActorCritic(nn.Module):
 
         return pi, latent_b_policy_distribution, latent_z_policy_distribution, total_logprobabilities
 
+class HierarchicalRecurrentActorCritic(HierarchicalActorCritic):
 
+    def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=16):
 
+        # Run super init to ensure smooth inheritance. 
+        super(HierarchicalRecurrentActorCritic, self).__init__(observation_space, action_space, hidden_sizes, activation, latent_z_dimension)
+    
+        # Since we are skipping creating MLP actors in the super init now, actually create the appropriate LSTM Policies.
 
