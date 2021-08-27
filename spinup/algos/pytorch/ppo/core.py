@@ -136,7 +136,7 @@ class MLPActorCritic(nn.Module):
 
 class HierarchicalActorCritic(nn.Module):
 
-    def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=64):
+    def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=16):
 
         super().__init__()
         obs_dim = observation_space.shape[0]
