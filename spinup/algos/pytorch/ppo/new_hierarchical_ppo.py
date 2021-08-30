@@ -548,8 +548,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # buf.store(o, action_tuple, r, v, logp_tuple)
                     # CHANGING TO STORING Z ACTION AND Z LOGP.
 
-                    print("embed")
-                    embed()
+                    
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
@@ -593,6 +592,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                 logger.save_state({'env': env}, None)
 
             print("About to update.")
+            embed()
             # Perform PPO update!
             update()
 

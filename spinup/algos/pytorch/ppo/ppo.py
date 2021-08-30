@@ -338,6 +338,8 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             logger.save_state({'env': env}, None)
 
         # Perform PPO update!
+        print("About to update.")
+        embed()        
         update()
 
         # Log info about epoch
