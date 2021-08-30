@@ -449,7 +449,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             ##########################################
 
             t = 0 
-            
+            # reset hidden state for incremental policy forward.
+            hidden = None
+
             ##########################################
             # 2) While we haven't exceeded timelimit and are still non-terminal:
             ##########################################
@@ -482,7 +484,21 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # 5) Sample low-level action a from low-level policy. 
                     ##########################################
 
-                    # TO DO.
+                    # 5a) Get joint state from observation.
+                    pure_joint_state = o['joint_pos']
+                    gripper_state = o['gripper_qpos'][0]-o['gripper_qpos'][1]
+                    joint_state = np.concatenate([pure_joint_state, gripper_state])
+
+                    # 5b) Assemble input. 
+                    if t==0:
+                        low_level_action = np.zeros_like(joint_state)
+                    assembled_input = torch.tensor(np.concatenate([joint_state,low_level_action])).to(device).float()
+
+                    # 5c) Now actually retrieve action.
+                    low_level_action, hidden = lowlevel_policy.incremental_reparam_get_actions(assembled_input, greedy=True, hidden=hidden)
+
+                    # 5d) Normalize action for benefit of environment. 
+                    # normalized_low_level_action = 
 
                     ##########################################
                     # 6) Step in environment. 
@@ -490,7 +506,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
                     # Set low level action.
                     
-                    next_o, r, d, _ = env.step(low_level_action)
+                    next_o, r, d, _ = env.step(normalized_low_level_action)
 
                     ##########################################
                     # 7) Increment counters, reset states, log cummulative rewards, etc. 
