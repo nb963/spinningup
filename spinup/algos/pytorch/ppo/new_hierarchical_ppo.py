@@ -254,7 +254,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
         # Changing to implementing as an MLPactorcritic but with a few additional functions.. 
         #####################################################
         
-        if True
+        if True:
             latent_z_dimension = 16 
             # Creating a special action space. 
             action_space_bound = np.ones(latent_z_dimension)*np.inf
