@@ -47,7 +47,10 @@ class PPOBuffer:
         # CHANGE: May possibly need to change this.   
         # CHANGED: Just need to torchify these actions before storing them. 
         # What we need to worry about is... torch taking up GPU space! Instead, storing them in normal RAM maybe better? 
-        torch_act = [torch.as_tensor(x, dtype=torch.float32) for x in act]
+        # torch_act = [torch.as_tensor(x, dtype=torch.float32) for x in act]
+
+        # CHanging back! Don't know what we were doing earlier
+        self.act_buf[self.ptr] = act
         self.act_buf[self.ptr] = torch_act
 
         self.rew_buf[self.ptr] = rew
@@ -337,8 +340,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
         # CHANGED TO sampling just z. 
         # Since we don't need a separate function for evaluating batch_logprob, just use ac.pi.
         obs, z_act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
-        print("embedding in loss")
-        embed()
+        # print("embedding in loss")
+        # embed()
         pi, logp = ac.pi(obs, z_act)
 
         ratio = torch.exp(logp - logp_old)
@@ -550,8 +553,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # buf.store(o, action_tuple, r, v, logp_tuple)
                     # CHANGING TO STORING Z ACTION AND Z LOGP.   
                     # 
-                    print("Embed in rollout")                                 
-                    embed()
+                    # print("Embed in rollout")                                 
+                    # embed()
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     

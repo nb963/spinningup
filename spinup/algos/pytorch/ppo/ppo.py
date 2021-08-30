@@ -228,8 +228,8 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         obs, act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
 
         # Policy loss
-        print("embedding in loss")
-        embed()
+        # print("embedding in loss")
+        # embed()
         pi, logp = ac.pi(obs, act)
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * adv
@@ -311,8 +311,8 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             ep_len += 1
 
             # save and log
-            print("calling buffer store", buf.ptr, terminal)
-            embed()
+            # print("calling buffer store", buf.ptr, terminal)
+            # embed()
             buf.store(o, a, r, v, logp)
             logger.store(VVals=v)
             
