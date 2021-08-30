@@ -243,9 +243,23 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
         obs_dim = env.observation_space.shape
 
         act_dim = env.action_space.shape
-        # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
-        # Create actor-critic module
-        ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+        
+
+        # # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
+        # # Create actor-critic module
+        # ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+        
+        #####################################################
+        # Changing to implementing as an MLPactorcritic but with a few additional functions.. 
+        #####################################################
+        
+        if True
+            latent_z_dimension = 16 
+            # Creating a special action space. 
+            action_space_bound = np.ones(latent_z_dimension)*np.inf
+            action_space = Box(-action_space_bound, action_space_bound)
+
+            ac = actor_critic(env.observation_space, action_space, **ac_kwargs)
 
         # Sync params across processes
         sync_params(ac)
@@ -264,23 +278,28 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
 
     def compute_loss_pi(data):
 
-        # Don't need to change this. 
-        obs, action_tuple, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
+        # # Don't need to change this. 
+        # obs, action_tuple, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
 
-        # Policy loss
-        # CHANGE: Don't need to change this code itself, but rather need to change forward of the actor critic policy to implement log probability correctly. 
-        # Now that we have transition from the buffer, we need to evaluate the likelihood of this action under the current estimate of the policy. 
-        # PPO uses both the log probability under the old policy and the new policy to do this. 
-        # This ac.pi(obs, act) call below just evaluates the logprobability and gets the distribution for the current policy with the previous action
-        # Must create an equivalent for the hierarchical policy to get the logprobability of hierarchical actions as well.
+        # # Policy loss
+        # # CHANGE: Don't need to change this code itself, but rather need to change forward of the actor critic policy to implement log probability correctly. 
+        # # Now that we have transition from the buffer, we need to evaluate the likelihood of this action under the current estimate of the policy. 
+        # # PPO uses both the log probability under the old policy and the new policy to do this. 
+        # # This ac.pi(obs, act) call below just evaluates the logprobability and gets the distribution for the current policy with the previous action
+        # # Must create an equivalent for the hierarchical policy to get the logprobability of hierarchical actions as well.
 
-        # CHANGED from:
-        # pi, logp = ac.pi(obs, action_tuple)
-        # Remember, action_tuple is not just a single datapoint. It is an array of datapoints containing action tuples. 
-        # Modify this to compute log probabilities over the batch.
+        # # CHANGED from:
+        # # pi, logp = ac.pi(obs, action_tuple)
+        # # Remember, action_tuple is not just a single datapoint. It is an array of datapoints containing action tuples. 
+        # # Modify this to compute log probabilities over the batch.
 
-        pi, b_pi, z_pi, logp = ac.evaluate_batch_logprob(obs, action_tuple)
-        
+        # pi, b_pi, z_pi, logp = ac.evaluate_batch_logprob(obs, action_tuple)
+
+        # CHANGED TO sampling just z. 
+        # Since we don't need a separate function for evaluating batch_logprob, just use ac.pi.
+        obs, z_act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
+        pi, logp = ac.pi(obs, z_act)
+
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * adv
         loss_pi = -(torch.min(ratio * adv, clip_adv)).mean()
@@ -312,9 +331,14 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
     if True:
         # CHANGED: Use all parameters.     
         # Can't just use the ac.parameters(), because we need separate optimizers for the latent and low-level policy optimizers. 
-        # pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
-        parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
-        pi_optimizer = Adam(parameter_list, lr=pi_lr)
+        pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
+
+
+        # Now that we're moving to the MLP Actor Critic version, without actual Hierarchical Actor Critic, just implement as standard optimizer list. 
+
+        # parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
+        # parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
+        # pi_optimizer = Adam(parameter_list, lr=pi_lr)
         vf_optimizer = Adam(ac.v.parameters(), lr=vf_lr)
 
         # Set up model saving
@@ -369,7 +393,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
     #######################################################
 
     if True:
-        
+
         # 1) Initialize. 
         # 2) While we haven't exceeded timelimit and are still non-terminal:
         #   # 3) Sample z from z policy. 
@@ -413,6 +437,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
                 # And then query low level policy....? Hmmmmmm, how does update work? 
                 # Probably need to feed high-level policy log probabilities to PPO to get it to work. 
 
+                # Revert to regular forward of Z AC (not receiving tuples).
+                # action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
+                z_action, v, z_logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
 
                 # First reset skill timer. 
                 t_skill = 0
@@ -449,7 +476,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
 
                     # save and log
                     # CHANGED: Saving the action tuple in the buffer instead of just the action..
-                    buf.store(o, action_tuple, r, v, logp_tuple)
+                    # buf.store(o, action_tuple, r, v, logp_tuple)
+                    # CHANGING TO STORING Z ACTION AND Z LOGP.
+                    buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
                     # Update obs (critical!)
