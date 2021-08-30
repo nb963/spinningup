@@ -9,6 +9,7 @@ from spinup.utils.mpi_pytorch import setup_pytorch_for_mpi, sync_params, mpi_avg
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 from IPython import embed
 from PolicyNetworks import ContinuousPolicyNetwork
+from gym.spaces import Box, Discrete
 
 class PPOBuffer:
     """
