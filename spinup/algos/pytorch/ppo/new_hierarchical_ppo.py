@@ -281,6 +281,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
             input_size = 2*state_size
             output_size = state_size
+            args.batch_size = 32
 
             # Instantiate policy based on parameters.    
             lowlevel_policy = ContinuousPolicyNetwork(input_size, hidden_size, output_size, args, number_layers).to(device)
