@@ -494,6 +494,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     ##########################################
 
                     # 5a) Get joint state from observation.
+                    print("Embed ")
+                    embed()
                     pure_joint_state = o['joint_pos']
                     gripper_state = o['gripper_qpos'][0]-o['gripper_qpos'][1]
                     joint_state = np.concatenate([pure_joint_state, gripper_state])
