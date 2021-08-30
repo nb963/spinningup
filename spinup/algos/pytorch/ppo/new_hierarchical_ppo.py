@@ -468,7 +468,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 2) While we haven't exceeded timelimit and are still non-terminal:
             ##########################################
 
-            while t<local_steps_per_epoch and not(terminal):
+            # while t<local_steps_per_epoch and not(terminal):
+            while t<local_steps_per_epoch:
 
                 ##########################################
                 # 3) Sample z from z policy. 
