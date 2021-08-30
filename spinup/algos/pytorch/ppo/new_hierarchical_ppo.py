@@ -549,6 +549,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # CHANGING TO STORING Z ACTION AND Z LOGP.
 
                     
+                    print("calling buffer store", buf.ptr)
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     

@@ -308,6 +308,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             ep_len += 1
 
             # save and log
+            print("calling buffer store", buf.ptr)
             buf.store(o, a, r, v, logp)
             logger.store(VVals=v)
             
