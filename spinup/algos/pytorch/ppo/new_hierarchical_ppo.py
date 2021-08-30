@@ -278,7 +278,6 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
             if args.data=='MIME':
                 state_size = 16
-
             elif args.data in ['Roboturk','FullRoboturk']:
                 state_size = 8
 
@@ -288,6 +287,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             args.batch_size = 32
             args.z_dimensions = 16
             args.dropout = 0.
+            args.mean_nonlinearity = 0
 
             # Instantiate policy based on parameters.    
             lowlevel_policy = ContinuousPolicyNetwork(input_size, hidden_size, output_size, args, number_layers).to(device)
@@ -496,17 +496,25 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # 5a) Get joint state from observation.
                     print("Embed ")
                     embed()
-                    pure_joint_state = o['joint_pos']
-                    gripper_state = o['gripper_qpos'][0]-o['gripper_qpos'][1]
+
+                    obs_spec = env.observation_spec()
+                    pure_joint_state = obs_spec['joint_pos']
+                    gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+                    max_gripper_state = 0.042
+                    # Norm gripper state from 0 to 1
+                    gripper_state = gripper_state/max_gripper_state
                     joint_state = np.concatenate([pure_joint_state, gripper_state])
 
                     # 5b) Assemble input. 
                     if t==0:
                         low_level_action = np.zeros_like(joint_state)
-                    assembled_input = torch.tensor(np.concatenate([joint_state,low_level_action])).to(device).float()
+                    assembled_states = np.concatenate([joint_state,low_level_action])
+                    assembled_input = np.concatenate([assembled_states, z_action])
+                    torch_assembled_input = torch.tensor(assembled_input).to(device).float().view(-1,1,input_size+latent_z_dimension)
 
                     # 5c) Now actually retrieve action.
-                    low_level_action, hidden = lowlevel_policy.incremental_reparam_get_actions(assembled_input, greedy=True, hidden=hidden)
+                    low_level_action, hidden = lowlevel_policy.incremental_reparam_get_actions(torch_assembled_input, greedy=True, hidden=hidden)
+                    low_level_action_numpy = low_level_action.detach().squeeze().squeeze().cpu().numpy()
 
                     # 5d) Normalize action for benefit of environment. 
                     # normalized_low_level_action = 
