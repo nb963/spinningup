@@ -221,39 +221,47 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
 
     """
 
-    # Special function to avoid certain slowdowns from PyTorch + MPI combo.
-    setup_pytorch_for_mpi()
+    #######################################################
+    # Setup code in general. 
+    #######################################################
 
-    # Set up logger and save configuration
-    logger = EpochLogger(**logger_kwargs)
-    logger.save_config(locals())
+    if True:
+        # Special function to avoid certain slowdowns from PyTorch + MPI combo.
+        setup_pytorch_for_mpi()
 
-    # Random seed
-    seed += 10000 * proc_id()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+        # Set up logger and save configuration
+        logger = EpochLogger(**logger_kwargs)
+        logger.save_config(locals())
 
-    # Instantiate environment
-    env = env_fn()
-    obs_dim = env.observation_space.shape
+        # Random seed
+        seed += 10000 * proc_id()
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
-    act_dim = env.action_space.shape
-    # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
-    # Create actor-critic module
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+        # Instantiate environment
+        env = env_fn()
+        obs_dim = env.observation_space.shape
 
-    # Sync params across processes
-    sync_params(ac)
+        act_dim = env.action_space.shape
+        # CHANGED: actor_critic now refers to Hierarchical actor critic defined in core. 
+        # Create actor-critic module
+        ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
 
-    # Count variables
-    var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.v])
-    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n'%var_counts)
+        # Sync params across processes
+        sync_params(ac)
 
-    # Set up experience buffer
-    local_steps_per_epoch = int(steps_per_epoch / num_procs())
-    buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
+        # Count variables
+        var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.v])
+        logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n'%var_counts)
 
+        # Set up experience buffer
+        local_steps_per_epoch = int(steps_per_epoch / num_procs())
+        buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
+
+    #######################################################
     # Set up function for computing PPO policy loss
+    #######################################################
+
     def compute_loss_pi(data):
 
         # Don't need to change this. 
@@ -288,25 +296,38 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
 
         return loss_pi, pi_info
 
+    #######################################################
+    # Critic function loss
+    #######################################################
+    
     # Set up function for computing value loss
     def compute_loss_v(data):
         obs, ret = data['obs'], data['ret']
         return ((ac.v(obs) - ret)**2).mean()
 
+    #######################################################
     # Set up optimizers for policy and value function
+    #######################################################
 
-    # CHANGED: Use all parameters. 
-    # Can't just use the ac.parameters(), because we need separate optimizers for the latent and low-level policy optimizers. 
-    # pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
-    parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
-    pi_optimizer = Adam(parameter_list, lr=pi_lr)
-    vf_optimizer = Adam(ac.v.parameters(), lr=vf_lr)
+    if True:
+        # CHANGED: Use all parameters.     
+        # Can't just use the ac.parameters(), because we need separate optimizers for the latent and low-level policy optimizers. 
+        # pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
+        parameter_list = list(ac.pi.parameters())+list(ac.latent_b_policy.parameters())+list(ac.latent_z_policy.parameters())
+        pi_optimizer = Adam(parameter_list, lr=pi_lr)
+        vf_optimizer = Adam(ac.v.parameters(), lr=vf_lr)
 
-    # Set up model saving
-    logger.setup_pytorch_saver(ac)
+        # Set up model saving
+        logger.setup_pytorch_saver(ac)
 
-    # 
+    #######################################################
+    # Update function
+    #######################################################
+    
+    # We never particularly changed the update function - we changed the compute_loss functions instead. 
+
     def update():
+
         data = buf.get()
 
         pi_l_old, pi_info_old = compute_loss_pi(data)
@@ -347,203 +368,212 @@ def hierarchical_ppo(env_fn, actor_critic=core.HierarchicalActorCritic, ac_kwarg
     # Remember, new rollout procedure. 
     #######################################################
 
-    # 1) Initialize. 
-    # 2) While we haven't exceeded timelimit and are still non-terminal:
-    #   # 3) Sample z from z policy. 
-    #   # 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
-    #       # 5) Sample low-level action a from low-level policy. 
-    #       # 6) Step in environment. 
-    #       # 7) Increment counters, reset states, log cummulative rewards, etc. 
-    #   # 8) Reset episode if necessary.           
-   
-    # Prepare for interaction with environment
-    start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
-    
-    # Set global skill time limit.
-    skill_time_limit = 14
-
-    ##########################################
-    # 1) Initialize / reset. 
-    ##########################################
-
-    for epoch in range(epochs):
-
-        ##########################################
-        # 1) Initialize / reset. (State is actually already reset here.)
-        ##########################################
-
-        t = 0 
+    if True:
         
-        ##########################################
+        # 1) Initialize. 
         # 2) While we haven't exceeded timelimit and are still non-terminal:
-        ##########################################
-
-        while t<local_steps_per_epoch:
-
-            ##########################################
-            # 3) Sample z from z policy. 
-            ##########################################
-
-            # Now no longer need a hierarchical actor critic? 
-            # Probably can implement as usual - just assemble appropriate inputs and query high level policy. 
-            # And then query low level policy....? Hmmmmmm, how does update work? 
-            # Probably need to feed high-level policy log probabilities to PPO to get it to work. 
-
-
-            # First reset skill timer. 
-            t_skill = 0
-
-            ##########################################
-            # 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
-            ##########################################
-
-            while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
-                
-                ##########################################
-                # 5) Sample low-level action a from low-level policy. 
-                ##########################################
-
-                # TO DO.
-
-                ##########################################
-                # 6) Step in environment. 
-                ##########################################
-
-                # Set low level action.
-                
-                next_o, r, d, _ = env.step(low_level_action)
-
-                ##########################################
-                # 7) Increment counters, reset states, log cummulative rewards, etc. 
-                ##########################################
-
-                ep_ret += r
-                ep_len += 1
-
-                # Also adding to the skill time. # Treating overall time the same.
-                t_skill += 1
-
-                # save and log
-                # CHANGED: Saving the action tuple in the buffer instead of just the action..
-                buf.store(o, action_tuple, r, v, logp_tuple)
-                logger.store(VVals=v)
-                
-                # Update obs (critical!)
-                o = next_o
-
-                timeout = ep_len == max_ep_len
-                terminal = d or timeout
-                epoch_ended = t==local_steps_per_epoch-1
-
-                if terminal or epoch_ended:
-                    if epoch_ended and not(terminal):
-                        print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
-                    # if trajectory didn't reach terminal state, bootstrap value target
-                    if timeout or epoch_ended:
-                        _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
-                    else:
-                        v = 0
-                    buf.finish_path(v)
-                    if terminal:
-                        # only save EpRet / EpLen if trajectory finished
-                        logger.store(EpRet=ep_ret, EpLen=ep_len)
-                    o, ep_ret, ep_len = env.reset(), 0, 0
+        #   # 3) Sample z from z policy. 
+        #   # 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
+        #       # 5) Sample low-level action a from low-level policy. 
+        #       # 6) Step in environment. 
+        #       # 7) Increment counters, reset states, log cummulative rewards, etc. 
+        #   # 8) Reset episode if necessary.           
+    
+        # Prepare for interaction with environment
+        start_time = time.time()
+        o, ep_ret, ep_len = env.reset(), 0, 0
         
+        # Set global skill time limit.
+        skill_time_limit = 14
+
         ##########################################
-        # 8) Save, update, and log. 
+        # 1) Initialize / reset. 
         ##########################################
 
-        # Save model
+        for epoch in range(epochs):
 
-        if (epoch % save_freq == 0) or (epoch == epochs-1):
-            logger.save_state({'env': env}, None)
+            ##########################################
+            # 1) Initialize / reset. (State is actually already reset here.)
+            ##########################################
 
-        # Perform PPO update!
-        update()
-
-        # Log info about epoch
-        logger.log_tabular('Epoch', epoch)
-        logger.log_tabular('EpRet', with_min_and_max=True)
-        logger.log_tabular('EpLen', average_only=True)
-        logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
-        logger.log_tabular('LossPi', average_only=True)
-        logger.log_tabular('LossV', average_only=True)
-        logger.log_tabular('DeltaLossPi', average_only=True)
-        logger.log_tabular('DeltaLossV', average_only=True)
-        logger.log_tabular('Entropy', average_only=True)
-        logger.log_tabular('KL', average_only=True)
-        logger.log_tabular('ClipFrac', average_only=True)
-        logger.log_tabular('StopIter', average_only=True)
-        logger.log_tabular('Time', time.time()-start_time)
-        logger.dump_tabular()
-
-
-
-
-    # Main loop: collect experience in env and update/log each epoch
-    for epoch in range(epochs):
-        for t in range(local_steps_per_epoch):
-
-            # CHANGED: Firstly, make sure the policy class implements actions as a tuple of a, z, b, and joint log probability of these. 
-            action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
-            # CHANGED: Now remember, the action is a tuple of a, z, b. So take a step in the low level environment with the low-level action. 
-            next_o, r, d, _ = env.step(action_tuple[0])
-
-            ep_ret += r
-            ep_len += 1
-
-            # save and log
-            # CHANGED: Saving the action tuple in the buffer instead of just the action..
-            buf.store(o, action_tuple, r, v, logp_tuple)
-            logger.store(VVals=v)
+            t = 0 
             
-            # Update obs (critical!)
-            o = next_o
+            ##########################################
+            # 2) While we haven't exceeded timelimit and are still non-terminal:
+            ##########################################
 
-            timeout = ep_len == max_ep_len
-            terminal = d or timeout
-            epoch_ended = t==local_steps_per_epoch-1
+            while t<local_steps_per_epoch:
 
-            if terminal or epoch_ended:
-                if epoch_ended and not(terminal):
-                    print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
-                # if trajectory didn't reach terminal state, bootstrap value target
-                if timeout or epoch_ended:
-                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
-                else:
-                    v = 0
-                buf.finish_path(v)
-                if terminal:
-                    # only save EpRet / EpLen if trajectory finished
-                    logger.store(EpRet=ep_ret, EpLen=ep_len)
-                o, ep_ret, ep_len = env.reset(), 0, 0
+                ##########################################
+                # 3) Sample z from z policy. 
+                ##########################################
+
+                # Now no longer need a hierarchical actor critic? 
+                # Probably can implement as usual - just assemble appropriate inputs and query high level policy. 
+                # And then query low level policy....? Hmmmmmm, how does update work? 
+                # Probably need to feed high-level policy log probabilities to PPO to get it to work. 
 
 
-        # Save model
-        if (epoch % save_freq == 0) or (epoch == epochs-1):
-            logger.save_state({'env': env}, None)
+                # First reset skill timer. 
+                t_skill = 0
 
-        # Perform PPO update!
-        update()
+                ##########################################
+                # 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
+                ##########################################
 
-        # Log info about epoch
-        logger.log_tabular('Epoch', epoch)
-        logger.log_tabular('EpRet', with_min_and_max=True)
-        logger.log_tabular('EpLen', average_only=True)
-        logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
-        logger.log_tabular('LossPi', average_only=True)
-        logger.log_tabular('LossV', average_only=True)
-        logger.log_tabular('DeltaLossPi', average_only=True)
-        logger.log_tabular('DeltaLossV', average_only=True)
-        logger.log_tabular('Entropy', average_only=True)
-        logger.log_tabular('KL', average_only=True)
-        logger.log_tabular('ClipFrac', average_only=True)
-        logger.log_tabular('StopIter', average_only=True)
-        logger.log_tabular('Time', time.time()-start_time)
-        logger.dump_tabular()
+                while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
+                    
+                    ##########################################
+                    # 5) Sample low-level action a from low-level policy. 
+                    ##########################################
+
+                    # TO DO.
+
+                    ##########################################
+                    # 6) Step in environment. 
+                    ##########################################
+
+                    # Set low level action.
+                    
+                    next_o, r, d, _ = env.step(low_level_action)
+
+                    ##########################################
+                    # 7) Increment counters, reset states, log cummulative rewards, etc. 
+                    ##########################################
+
+                    ep_ret += r
+                    ep_len += 1
+
+                    # Also adding to the skill time. # Treating overall time the same.
+                    t_skill += 1
+
+                    # save and log
+                    # CHANGED: Saving the action tuple in the buffer instead of just the action..
+                    buf.store(o, action_tuple, r, v, logp_tuple)
+                    logger.store(VVals=v)
+                    
+                    # Update obs (critical!)
+                    o = next_o
+
+                    timeout = ep_len == max_ep_len
+                    terminal = d or timeout
+                    epoch_ended = t==local_steps_per_epoch-1
+
+                    if terminal or epoch_ended:
+                        if epoch_ended and not(terminal):
+                            print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
+                        # if trajectory didn't reach terminal state, bootstrap value target
+                        if timeout or epoch_ended:
+                            _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
+                        else:
+                            v = 0
+                        buf.finish_path(v)
+                        if terminal:
+                            # only save EpRet / EpLen if trajectory finished
+                            logger.store(EpRet=ep_ret, EpLen=ep_len)
+                        o, ep_ret, ep_len = env.reset(), 0, 0
+            
+            ##########################################
+            # 8) Save, update, and log. 
+            ##########################################
+
+            # Save model
+
+            if (epoch % save_freq == 0) or (epoch == epochs-1):
+                logger.save_state({'env': env}, None)
+
+            # Perform PPO update!
+            update()
+
+            # Log info about epoch
+            logger.log_tabular('Epoch', epoch)
+            logger.log_tabular('EpRet', with_min_and_max=True)
+            logger.log_tabular('EpLen', average_only=True)
+            logger.log_tabular('VVals', with_min_and_max=True)
+            logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+            logger.log_tabular('LossPi', average_only=True)
+            logger.log_tabular('LossV', average_only=True)
+            logger.log_tabular('DeltaLossPi', average_only=True)
+            logger.log_tabular('DeltaLossV', average_only=True)
+            logger.log_tabular('Entropy', average_only=True)
+            logger.log_tabular('KL', average_only=True)
+            logger.log_tabular('ClipFrac', average_only=True)
+            logger.log_tabular('StopIter', average_only=True)
+            logger.log_tabular('Time', time.time()-start_time)
+            logger.dump_tabular()
+
+
+
+        # #############################################################
+        # # Old form of rollout in training loop. 
+        # #############################################################
+
+        # # Main loop: collect experience in env and update/log each epoch
+        # for epoch in range(epochs):
+        #     for t in range(local_steps_per_epoch):
+
+        #         # CHANGED: Firstly, make sure the policy class implements actions as a tuple of a, z, b, and joint log probability of these. 
+        #         action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
+        #         # CHANGED: Now remember, the action is a tuple of a, z, b. So take a step in the low level environment with the low-level action. 
+        #         next_o, r, d, _ = env.step(action_tuple[0])
+
+        #         ep_ret += r
+        #         ep_len += 1
+
+        #         # save and log
+        #         # CHANGED: Saving the action tuple in the buffer instead of just the action..
+        #         buf.store(o, action_tuple, r, v, logp_tuple)
+        #         logger.store(VVals=v)
+                
+        #         # Update obs (critical!)
+        #         o = next_o
+
+        #         timeout = ep_len == max_ep_len
+        #         terminal = d or timeout
+        #         epoch_ended = t==local_steps_per_epoch-1
+
+        #         if terminal or epoch_ended:
+        #             if epoch_ended and not(terminal):
+        #                 print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
+        #             # if trajectory didn't reach terminal state, bootstrap value target
+        #             if timeout or epoch_ended:
+        #                 _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
+        #             else:
+        #                 v = 0
+        #             buf.finish_path(v)
+        #             if terminal:
+        #                 # only save EpRet / EpLen if trajectory finished
+        #                 logger.store(EpRet=ep_ret, EpLen=ep_len)
+        #             o, ep_ret, ep_len = env.reset(), 0, 0
+
+
+        #     # Save model
+        #     if (epoch % save_freq == 0) or (epoch == epochs-1):
+        #         logger.save_state({'env': env}, None)
+
+        #     # Perform PPO update!
+        #     update()
+
+        #     # Log info about epoch
+        #     logger.log_tabular('Epoch', epoch)
+        #     logger.log_tabular('EpRet', with_min_and_max=True)
+        #     logger.log_tabular('EpLen', average_only=True)
+        #     logger.log_tabular('VVals', with_min_and_max=True)
+        #     logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+        #     logger.log_tabular('LossPi', average_only=True)
+        #     logger.log_tabular('LossV', average_only=True)
+        #     logger.log_tabular('DeltaLossPi', average_only=True)
+        #     logger.log_tabular('DeltaLossV', average_only=True)
+        #     logger.log_tabular('Entropy', average_only=True)
+        #     logger.log_tabular('KL', average_only=True)
+        #     logger.log_tabular('ClipFrac', average_only=True)
+        #     logger.log_tabular('StopIter', average_only=True)
+        #     logger.log_tabular('Time', time.time()-start_time)
+        #     logger.dump_tabular()
+
+        #     #############################################################
+        #     # End 
+        #     #############################################################
 
 if __name__ == '__main__':
     import argparse

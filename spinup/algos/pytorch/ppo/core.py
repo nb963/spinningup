@@ -93,7 +93,6 @@ class MLPGaussianActor(Actor):
     def _log_prob_from_distribution(self, pi, act):
         return pi.log_prob(act).sum(axis=-1)    # Last axis sum needed for Torch Normal distribution
 
-
 class MLPCritic(nn.Module):
 
     def __init__(self, obs_dim, hidden_sizes, activation):
@@ -102,8 +101,6 @@ class MLPCritic(nn.Module):
 
     def forward(self, obs):
         return torch.squeeze(self.v_net(obs), -1) # Critical to ensure v has right shape.
-
-
 
 class MLPActorCritic(nn.Module):
 
@@ -213,31 +210,32 @@ class HierarchicalActorCritic(nn.Module):
 
         return pi, latent_b_policy_distribution, latent_z_policy_distribution, total_logprobabilities
 
-class HierarchicalRecurrentActorCritic(HierarchicalActorCritic):
 
-    def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=16):
+# class HierarchicalRecurrentActorCritic(HierarchicalActorCritic):
 
-        # Run super init to ensure smooth inheritance. 
-        super(HierarchicalRecurrentActorCritic, self).__init__(observation_space, action_space, hidden_sizes, activation, latent_z_dimension)
+#     def __init__(self, observation_space, action_space, hidden_sizes=(64,64), activation=nn.Tanh, latent_z_dimension=16):
+
+#         # Run super init to ensure smooth inheritance. 
+#         super(HierarchicalRecurrentActorCritic, self).__init__(observation_space, action_space, hidden_sizes, activation, latent_z_dimension)
     
-        # Since we are skipping creating MLP actors in the super init now, actually create the appropriate LSTM Policies.
+#         # Since we are skipping creating MLP actors in the super init now, actually create the appropriate LSTM Policies.
 
-    def step(obs):
+#     def step(obs):
 
-        # Overall pipeline of this should really be similar to latent_policy_rollout that we have in TVI.
-        # I.e. feed observation to the latent policy first, get the b and z. 
-        # Now feed this z and the obs to the low level policy, create distribution, sample low level action.
+#         # Overall pipeline of this should really be similar to latent_policy_rollout that we have in TVI.
+#         # I.e. feed observation to the latent policy first, get the b and z. 
+#         # Now feed this z and the obs to the low level policy, create distribution, sample low level action.
 
-        with torch.no_grad():
+#         with torch.no_grad():
             
-            # Now choose Z and b first, before we choose anything else..
-            latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
-            latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
+#             # Now choose Z and b first, before we choose anything else..
+#             latent_b_policy_distribution = self.latent_b_policy._distribution(obs)
+#             latent_z_policy_distribution = self.latent_z_policy._distribution(obs)
 
-            latent_b = latent_b_policy_distribution.sample()
-            latent_z = latent_z_policy_distribution.sample()
+#             latent_b = latent_b_policy_distribution.sample()
+#             latent_z = latent_z_policy_distribution.sample()
 
-            latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, latent_b)
-            latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, latent_z)
+#             latent_b_logprobabilitity = self.latent_b_policy._log_prob_from_distribution(latent_b_policy_distribution, latent_b)
+#             latent_z_logprobabilitity = self.latent_z_policy._log_prob_from_distribution(latent_z_policy_distribution, latent_z)
 
     
