@@ -472,7 +472,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             print("Running epoch: ", epoch)
             print("##########################################")
 
-            while t<local_steps_per_epoch:
+            while t<local_steps_per_epoch and not(terminal):
 
                 ##########################################
                 # 3) Sample z from z policy. 
