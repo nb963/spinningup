@@ -468,10 +468,6 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 2) While we haven't exceeded timelimit and are still non-terminal:
             ##########################################
 
-            print("##########################################")
-            print("Running epoch: ", epoch)
-            print("##########################################")
-
             while t<local_steps_per_epoch and not(terminal):
 
                 ##########################################
@@ -551,6 +547,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # CHANGED: Saving the action tuple in the buffer instead of just the action..
                     # buf.store(o, action_tuple, r, v, logp_tuple)
                     # CHANGING TO STORING Z ACTION AND Z LOGP.
+
+                    print("embed")
+                    embed()
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
@@ -561,12 +560,13 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     terminal = d or timeout
                     epoch_ended = t==local_steps_per_epoch-1
 
-
                     # Also adding to the skill time and overall time, since we're in a while loop now.
                     t_skill += 1                    
                     t+=1
 
+
                     if terminal or epoch_ended:
+                        print("Entered")
                         if epoch_ended and not(terminal):
                             print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
                         # if trajectory didn't reach terminal state, bootstrap value target
