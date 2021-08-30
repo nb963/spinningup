@@ -459,6 +459,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             t = 0 
             # reset hidden state for incremental policy forward.
             hidden = None
+            terminal = False
 
             ##########################################
             # 2) While we haven't exceeded timelimit and are still non-terminal:
