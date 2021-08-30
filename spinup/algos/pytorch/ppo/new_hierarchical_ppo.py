@@ -520,8 +520,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
                     # 5b) Assemble input. 
                     if t==0:
-                        low_level_action = np.zeros_like(normalized_joint_state)
-                    assembled_states = np.concatenate([normalized_joint_state,low_level_action])
+                        low_level_action_numpy = np.zeros_like(normalized_joint_state)                    
+                    assembled_states = np.concatenate([normalized_joint_state,low_level_action_numpy])
                     assembled_input = np.concatenate([assembled_states, z_action])
                     torch_assembled_input = torch.tensor(assembled_input).to(device).float().view(-1,1,input_size+latent_z_dimension)
 
