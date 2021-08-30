@@ -117,7 +117,7 @@ class PPOBuffer:
 def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
-        target_kl=0.01, logger_kwargs=dict(), save_freq=10):
+        target_kl=0.01, logger_kwargs=dict(), save_freq=10, args=None):
     
     """
     Proximal Policy Optimization (by clipping), 
@@ -261,6 +261,33 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             action_space = Box(-action_space_bound, action_space_bound)
 
             ac = actor_critic(env.observation_space, action_space, **ac_kwargs)
+
+        #####################################################
+        # Also now instantiate low level policy. 
+        #####################################################
+
+        if True:
+            # Set parameters. 
+
+            hidden_size = 48
+            number_layers = 4
+
+            if args.data=='MIME':
+                state_size = 16
+
+            elif args.data in ['Roboturk','FullRoboturk']:
+                state_size = 8
+
+            input_size = 2*state_size
+            output_size = state_size
+
+            # Instantiate policy based on parameters.    
+            lowlevel_policy = ContinuousPolicyNetwork(input_size, hidden_size, output_size, args, number_layers).to(device)
+
+            # If model file for lowlevel policy, load it. 
+            if args.lowlevel_policy_model is not None:
+                load_object = torch.load(args.lowlevel_policy_model)
+                lowlevel_policy.load_state_dict(load_object['Policy_Network'])
 
         # Sync params across processes
         sync_params(ac)
