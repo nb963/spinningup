@@ -284,6 +284,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                 state_size = 8
                 lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
                 upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))
+
+            joint_limit_range = upper_joint_limits - lower_joint_limits
             input_size = 2*state_size
             output_size = state_size
             #  
@@ -509,11 +511,14 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # Norm gripper state from -1 to 1. 
                     gripper_state = 2*gripper_state-1
                     joint_state = np.concatenate([pure_joint_state, gripper_state])
+                    
+                    # Normalize joint state according to joint limits (minmax normaization).
+                    normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
 
                     # 5b) Assemble input. 
                     if t==0:
-                        low_level_action = np.zeros_like(joint_state)
-                    assembled_states = np.concatenate([joint_state,low_level_action])
+                        low_level_action = np.zeros_like(normalized_joint_state)
+                    assembled_states = np.concatenate([normalized_joint_state,low_level_action])
                     assembled_input = np.concatenate([assembled_states, z_action])
                     torch_assembled_input = torch.tensor(assembled_input).to(device).float().view(-1,1,input_size+latent_z_dimension)
 
@@ -522,7 +527,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     low_level_action_numpy = low_level_action.detach().squeeze().squeeze().cpu().numpy()
 
                     # 5d) Normalize action for benefit of environment. 
-                    # normalized_low_level_action = 
+                    # Output of policy is minmax normalized, which is 0-1 range. 
+                    # Change to -1 to 1 range. 
+                    normalized_low_level_action = 2*low_level_action_numpy-1
 
                     ##########################################
                     # 6) Step in environment. 
