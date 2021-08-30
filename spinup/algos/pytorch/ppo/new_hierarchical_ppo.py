@@ -495,10 +495,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                 ##########################################
 
                 while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
-                    
-
-                    print("##########################################")
-                    print("running: t, t_skill", t, t_skill)
+                                        
                     ##########################################
                     # 5) Sample low-level action a from low-level policy. 
                     ##########################################
