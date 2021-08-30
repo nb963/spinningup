@@ -550,7 +550,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # CHANGING TO STORING Z ACTION AND Z LOGP.
 
                     
-                    print("calling buffer store", buf.ptr)
+                    print("calling buffer store", buf.ptr, terminal)
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
@@ -567,6 +567,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 
                     if terminal or epoch_ended:
+                        print("###############################################")
+                        print("###############################################")
                         print("Entered")
                         if epoch_ended and not(terminal):
                             print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
