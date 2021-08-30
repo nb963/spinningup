@@ -355,8 +355,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
         # CHANGED TO sampling just z. 
         # Since we don't need a separate function for evaluating batch_logprob, just use ac.pi.
         obs, z_act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
-        print("embedding in loss")
-        embed()
+        # print("embedding in loss")
+        # embed()
         pi, logp = ac.pi(obs, z_act)
 
         ratio = torch.exp(logp - logp_old)
