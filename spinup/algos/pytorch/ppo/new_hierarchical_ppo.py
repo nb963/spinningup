@@ -11,6 +11,9 @@ from IPython import embed
 from PolicyNetworks import ContinuousPolicyNetwork
 from gym.spaces import Box, Discrete
 
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda" if use_cuda else "cpu")
+
 class PPOBuffer:
     """
     A buffer for storing trajectories experienced by a PPO agent interacting
