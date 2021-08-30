@@ -296,6 +296,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Prepare for interaction with environment
     start_time = time.time()
     o, ep_ret, ep_len = env.reset(), 0, 0
+    terminal = False
 
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
