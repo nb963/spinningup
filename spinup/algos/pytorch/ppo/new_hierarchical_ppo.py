@@ -548,7 +548,10 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # save and log
                     # CHANGED: Saving the action tuple in the buffer instead of just the action..
                     # buf.store(o, action_tuple, r, v, logp_tuple)
-                    # CHANGING TO STORING Z ACTION AND Z LOGP.                                    
+                    # CHANGING TO STORING Z ACTION AND Z LOGP.   
+                    # 
+                    print("Embed in rollout")                                 
+                    embed()
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
