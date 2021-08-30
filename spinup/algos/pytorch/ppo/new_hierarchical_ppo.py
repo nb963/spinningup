@@ -468,11 +468,15 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 2) While we haven't exceeded timelimit and are still non-terminal:
             ##########################################
 
+            print("##########################################")
+            print("Running epoch: ", epoch)
+            print("##########################################")
+
             while t<local_steps_per_epoch:
 
                 ##########################################
                 # 3) Sample z from z policy. 
-                ##########################################
+                ##########################################                
 
                 # Now no longer need a hierarchical actor critic? 
                 # Probably can implement as usual - just assemble appropriate inputs and query high level policy. 
@@ -492,6 +496,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
                 while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
                     
+
+                    print("##########################################")
+                    print("running: t, t_skill", t, t_skill)
                     ##########################################
                     # 5) Sample low-level action a from low-level policy. 
                     ##########################################
