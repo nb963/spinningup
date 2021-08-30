@@ -459,6 +459,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 1) Initialize / reset. (State is actually already reset here.)
             ##########################################
 
+            print("Run Epoch: ",epoch)            
             t = 0 
             # reset hidden state for incremental policy forward.
             hidden = None
