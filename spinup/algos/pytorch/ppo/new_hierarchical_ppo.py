@@ -275,16 +275,19 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
             hidden_size = 48
             number_layers = 4
-
+            basedir = args.basedir
             if args.data=='MIME':
                 state_size = 16
+                lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Min.npy"))
+                upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Max.npy"))
             elif args.data in ['Roboturk','FullRoboturk']:
                 state_size = 8
-
+                lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
+                upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))
             input_size = 2*state_size
             output_size = state_size
             #  
-            args.batch_size = 32
+            args.batch_size = 1
             args.z_dimensions = 16
             args.dropout = 0.
             args.mean_nonlinearity = 0
@@ -503,6 +506,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     max_gripper_state = 0.042
                     # Norm gripper state from 0 to 1
                     gripper_state = gripper_state/max_gripper_state
+                    # Norm gripper state from -1 to 1. 
+                    gripper_state = 2*gripper_state-1
                     joint_state = np.concatenate([pure_joint_state, gripper_state])
 
                     # 5b) Assemble input. 
