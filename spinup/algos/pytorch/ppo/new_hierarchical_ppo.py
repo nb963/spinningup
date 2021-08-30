@@ -547,10 +547,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     # save and log
                     # CHANGED: Saving the action tuple in the buffer instead of just the action..
                     # buf.store(o, action_tuple, r, v, logp_tuple)
-                    # CHANGING TO STORING Z ACTION AND Z LOGP.
-
-                    
-                    print("calling buffer store", buf.ptr, terminal)
+                    # CHANGING TO STORING Z ACTION AND Z LOGP.                                    
                     buf.store(o, z_action, r, v, z_logp)
                     logger.store(VVals=v)
                     
@@ -567,9 +564,6 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 
                     if terminal or epoch_ended:
-                        print("###############################################")
-                        print("###############################################")
-                        print("Entered")
                         if epoch_ended and not(terminal):
                             print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
                         # if trajectory didn't reach terminal state, bootstrap value target
@@ -587,18 +581,15 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 8) Save, update, and log. 
             ##########################################
 
-            # Save model
-
-            print("About to log.")
-            
-
+            # Save model        
             if (epoch % save_freq == 0) or (epoch == epochs-1):
                 logger.save_state({'env': env}, None)
 
-            print("About to update.")
-            embed()
+                        
             # Perform PPO update!
-            update()
+            # If we have enough buffer items. 
+            if buf.ptr>=buf.max_size:
+                update()
 
             # Log info about epoch
             logger.log_tabular('Epoch', epoch)

@@ -309,7 +309,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             ep_len += 1
 
             # save and log
-            print("calling buffer store", buf.ptr, terminal)
+            # print("calling buffer store", buf.ptr, terminal)
             buf.store(o, a, r, v, logp)
             logger.store(VVals=v)
             
@@ -321,9 +321,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             epoch_ended = t==local_steps_per_epoch-1
 
             if terminal or epoch_ended:
-                print("###############################################")
-                print("###############################################")
-                print("entered term")
+
                 if epoch_ended and not(terminal):
                     print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
                 # if trajectory didn't reach terminal state, bootstrap value target
@@ -342,9 +340,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         if (epoch % save_freq == 0) or (epoch == epochs-1):
             logger.save_state({'env': env}, None)
 
-        # Perform PPO update!
-        print("About to update.")
-        embed()        
+        # Perform PPO update!         
         update()
 
         # Log info about epoch
