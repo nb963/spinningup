@@ -468,9 +468,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             # 2) While we haven't exceeded timelimit and are still non-terminal:
             ##########################################
 
-            # while t<local_steps_per_epoch and not(terminal):
-            while t<local_steps_per_epoch:
-
+            while t<local_steps_per_epoch and not(terminal):
                 ##########################################
                 # 3) Sample z from z policy. 
                 ##########################################                
@@ -591,24 +589,22 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
             if buf.ptr>=buf.max_size:
                 update()
 
-            # Log info about epoch
-            logger.log_tabular('Epoch', epoch)
-            logger.log_tabular('EpRet', with_min_and_max=True)
-            logger.log_tabular('EpLen', average_only=True)
-            logger.log_tabular('VVals', with_min_and_max=True)
-            logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
-            logger.log_tabular('LossPi', average_only=True)
-            logger.log_tabular('LossV', average_only=True)
-            logger.log_tabular('DeltaLossPi', average_only=True)
-            logger.log_tabular('DeltaLossV', average_only=True)
-            logger.log_tabular('Entropy', average_only=True)
-            logger.log_tabular('KL', average_only=True)
-            logger.log_tabular('ClipFrac', average_only=True)
-            logger.log_tabular('StopIter', average_only=True)
-            logger.log_tabular('Time', time.time()-start_time)
-            logger.dump_tabular()
-
-
+                # Log info about epoch
+                logger.log_tabular('Epoch', epoch)
+                logger.log_tabular('EpRet', with_min_and_max=True)
+                logger.log_tabular('EpLen', average_only=True)
+                logger.log_tabular('VVals', with_min_and_max=True)
+                logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+                logger.log_tabular('LossPi', average_only=True)
+                logger.log_tabular('LossV', average_only=True)
+                logger.log_tabular('DeltaLossPi', average_only=True)
+                logger.log_tabular('DeltaLossV', average_only=True)
+                logger.log_tabular('Entropy', average_only=True)
+                logger.log_tabular('KL', average_only=True)
+                logger.log_tabular('ClipFrac', average_only=True)
+                logger.log_tabular('StopIter', average_only=True)
+                logger.log_tabular('Time', time.time()-start_time)
+                logger.dump_tabular()
 
         # #############################################################
         # # Old form of rollout in training loop. 
