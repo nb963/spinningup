@@ -549,8 +549,6 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     ep_ret += r
                     ep_len += 1
 
-                    # Also adding to the skill time. # Treating overall time the same.
-                    t_skill += 1
 
                     # save and log
                     # CHANGED: Saving the action tuple in the buffer instead of just the action..
@@ -565,6 +563,11 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
                     timeout = ep_len == max_ep_len
                     terminal = d or timeout
                     epoch_ended = t==local_steps_per_epoch-1
+
+
+                    # Also adding to the skill time and overall time, since we're in a while loop now.
+                    t_skill += 1                    
+                    t+=1
 
                     if terminal or epoch_ended:
                         if epoch_ended and not(terminal):
