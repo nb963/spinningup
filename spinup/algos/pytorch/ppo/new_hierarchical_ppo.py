@@ -586,9 +586,13 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
             # Save model
 
+            print("About to log.")
+            
+
             if (epoch % save_freq == 0) or (epoch == epochs-1):
                 logger.save_state({'env': env}, None)
 
+            print("About to update.")
             # Perform PPO update!
             update()
 
