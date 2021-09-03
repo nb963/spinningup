@@ -8,6 +8,7 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 from IPython import embed
 from PolicyNetworks import ContinuousPolicyNetwork
 from gym.spaces import Box, Discrete
+import robosuite
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
@@ -469,7 +470,20 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		# Set global skill time limit.
 		skill_time_limit = 14
 
-		# image_list = []
+		eval_time_limit = 10000000
+		downsample_freq = 20
+
+		if args.evaluate_translated_zs:
+			epochs = 1
+			image_list = []
+			batch_index = 0			
+			translated_zs = np.load(args.translated_z_file)[:,batch_index]
+			# source_variational_dict = np.load(args.source_variational_dict,allow_pickle=True).item()
+			# source_latent_bs = source_variational_dict['latent_b'][:,batch_index]
+			skill_time_limit = 16
+			eval_time_limit = translated_zs.shape[0]*downsample_freq
+
+		skill_time_limit *= downsample_freq
 
 		##########################################
 		# 1) Initialize / reset. 
@@ -482,6 +496,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			##########################################
 
 			print("Run Epoch: ",epoch)            
+
 			t = 0 
 			# reset hidden state for incremental policy forward.
 			hidden = None
@@ -491,7 +506,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			# 2) While we haven't exceeded timelimit and are still non-terminal:
 			##########################################
 
-			while t<local_steps_per_epoch and not(terminal):
+
+			while t<local_steps_per_epoch and not(terminal) and t<eval_time_limit:
 				##########################################
 				# 3) Sample z from z policy. 
 				##########################################                
@@ -508,7 +524,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				# # FOR NOW
 				# zset = np.load("/home/tshankar/Research/Code/Z_Set.npy")
 				# if t<len(zset):
-				# 	z_action = zset[t]
+				if args.evaluate_translated_zs:
+					z_action = translated_zs[t//downsample_freq]
 
 				# First reset skill timer. 
 				t_skill = 0
@@ -516,9 +533,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				##########################################
 				# 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
 				##########################################
-
-				# print("Embed before skll")
-				# embed()
+				
 
 				while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
 										
@@ -529,9 +544,21 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 					# 5a) Get joint state from observation.
 				   
 					obs_spec = env.observation_spec()
-					pure_joint_state = obs_spec['joint_pos']
-					gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
 					max_gripper_state = 0.042
+
+					if float(robosuite.__version__[:3])>1.:
+						pure_joint_state = env.sim.get_state()[1][:7]						
+						
+						if args.env_name=='Wipe':
+							# here, no gripper, so set dummy joint pos
+							gripper_state = np.array([max_gripper_state/2])
+						else:
+							gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
+					else:
+						
+						pure_joint_state = obs_spec['joint_pos']					
+						gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+					
 					# Norm gripper state from 0 to 1
 					gripper_state = gripper_state/max_gripper_state
 					# Norm gripper state from -1 to 1. 
@@ -574,13 +601,20 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 					# print("Embed before step..")
 					# embed()
 
-
-					next_o, r, d, _ = env.step(normalized_low_level_action)
+					if args.env_name=='Wipe':
+						next_o, r, d, _ = env.step(normalized_low_level_action[:-1])
+					else:
+						next_o, r, d, _ = env.step(normalized_low_level_action)
 					
 					
 
 					# Logging images
-					# image_list.append(np.flipud(env.sim.render(600,600,camera_name='vizview1')))
+					if args.evaluate_translated_zs and t%10==0:
+
+						# if float(robosuite.__version__[:3])>1.:
+							# image_list.append(np.flipud(env.sim.render(600,600,camera_name='agentview')))
+						# else:
+						image_list.append(np.flipud(env.sim.render(600,600,camera_name='vizview1')))
 
 					##########################################
 					# 7) Increment counters, reset states, log cummulative rewards, etc. 
@@ -610,10 +644,11 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 					t_skill += 1                    
 					t+=1
 
-					if terminal or epoch_ended:
+					if terminal or epoch_ended or t>=eval_time_limit:
 
-						# print("Embed at end of epoch")
-						# embed()						
+						if args.evaluate_translated_zs:
+							print("Embed at end of epoch")
+							embed()						
 						
 						if epoch_ended and not(terminal):
 							print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
