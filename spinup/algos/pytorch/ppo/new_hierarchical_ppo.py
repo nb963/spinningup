@@ -452,7 +452,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 	# Remember, new rollout procedure. 
 	#######################################################
 
-	if True:
+	def rollout(return_eval=False):
 
 		# 1) Initialize. 
 		# 2) While we haven't exceeded timelimit and are still non-terminal:
@@ -463,205 +463,229 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		#       # 7) Increment counters, reset states, log cummulative rewards, etc. 
 		#   # 8) Reset episode if necessary.           
 	
-		# Prepare for interaction with environment
-		start_time = time.time()
+		##########################################
+		# 1) Initialize / reset. (State is actually already reset here.)
+		##########################################
+    
+
+		t = 0 
+		# reset hidden state for incremental policy forward.
+		hidden = None
+		terminal = False
 		o, ep_ret, ep_len = env.reset(), 0, 0
+			
+
+		##########################################
+		# 2) While we haven't exceeded timelimit and are still non-terminal:
+		##########################################
+
+
+		while t<local_steps_per_epoch and not(terminal) and t<eval_time_limit:
+			##########################################
+			# 3) Sample z from z policy. 
+			##########################################                
+
+			# Now no longer need a hierarchical actor critic? 
+			# Probably can implement as usual - just assemble appropriate inputs and query high level policy. 
+			# And then query low level policy....? Hmmmmmm, how does update work? 
+			# Probably need to feed high-level policy log probabilities to PPO to get it to work. 
+
+			# Revert to regular forward of Z AC (not receiving tuples).
+			# action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
+			z_action, v, z_logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
+			
+			# # FOR NOW
+			# zset = np.load("/home/tshankar/Research/Code/Z_Set.npy")
+			# if t<len(zset):
+			if args.evaluate_translated_zs:
+				z_action = translated_zs[t//downsample_freq]
+
+			# First reset skill timer. 
+			t_skill = 0
+
+			##########################################
+			# 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
+			##########################################
+			
+
+			while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
+									
+				##########################################
+				# 5) Sample low-level action a from low-level policy. 
+				##########################################
+
+				# 5a) Get joint state from observation.
+				
+				obs_spec = env.observation_spec()
+				max_gripper_state = 0.042
+
+				if float(robosuite.__version__[:3])>1.:
+					pure_joint_state = env.sim.get_state()[1][:7]						
+					
+					if args.env_name=='Wipe':
+						# here, no gripper, so set dummy joint pos
+						gripper_state = np.array([max_gripper_state/2])
+					else:
+						gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
+				else:
+					
+					pure_joint_state = obs_spec['joint_pos']					
+					gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+				
+				# Norm gripper state from 0 to 1
+				gripper_state = gripper_state/max_gripper_state
+				# Norm gripper state from -1 to 1. 
+				gripper_state = 2*gripper_state-1
+				joint_state = np.concatenate([pure_joint_state, gripper_state])
+				
+				# Normalize joint state according to joint limits (minmax normaization).
+				normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
+
+				# 5b) Assemble input. 
+				if t==0:
+					low_level_action_numpy = np.zeros_like(normalized_joint_state)                    
+				assembled_states = np.concatenate([normalized_joint_state,low_level_action_numpy])
+				assembled_input = np.concatenate([assembled_states, z_action])
+				torch_assembled_input = torch.tensor(assembled_input).to(device).float().view(-1,1,input_size+latent_z_dimension)
+
+				# 5c) Now actually retrieve action.
+				low_level_action, hidden = lowlevel_policy.incremental_reparam_get_actions(torch_assembled_input, greedy=True, hidden=hidden)
+				low_level_action_numpy = low_level_action.detach().squeeze().squeeze().cpu().numpy()
+
+				# 5d) Unnormalize 
+				# unnormalized_low_level_action_numpy = *joint_limit_range 
+				# UNNORMALIZING ACTIONS! WE'VE NEVER ..DONE THIS BEFORE? 
+				# JUST SCALE UP FOR NOW
+				unnormalized_low_level_action_numpy = args.action_scaling * low_level_action_numpy
+				# 5d) Normalize action for benefit of environment. 
+				# Output of policy is minmax normalized, which is 0-1 range. 
+				# Change to -1 to 1 range. 
+
+				# normalized_low_level_action = low_level_action_numpy
+				normalized_low_level_action = unnormalized_low_level_action_numpy
+				# normalized_low_level_action = 2*low_level_action_numpy-1
+
+
+				##########################################
+				# 6) Step in environment. 
+				##########################################
+
+				# Set low level action.
+				# print("Embed before step..")
+				# embed()
+
+				if args.env_name=='Wipe':
+					next_o, r, d, _ = env.step(normalized_low_level_action[:-1])
+				else:
+					next_o, r, d, _ = env.step(normalized_low_level_action)
+				
+				
+
+				# Logging images
+				if args.evaluate_translated_zs and t%10==0:
+
+					# if float(robosuite.__version__[:3])>1.:
+						# image_list.append(np.flipud(env.sim.render(600,600,camera_name='agentview')))
+					# else:
+					image_list.append(np.flipud(env.sim.render(600,600,camera_name='vizview1')))
+
+				##########################################
+				# 7) Increment counters, reset states, log cummulative rewards, etc. 
+				##########################################
+
+				ep_ret += r
+				ep_len += 1
+
+
+				# save and log
+				# CHANGED: Saving the action tuple in the buffer instead of just the action..
+				# buf.store(o, action_tuple, r, v, logp_tuple)
+				# CHANGING TO STORING Z ACTION AND Z LOGP.   
+				# 
+				
+				buf.store(o, z_action, r, v, z_logp)
+				logger.store(VVals=v)
+				
+				# Update obs (critical!)
+				o = next_o
+
+				timeout = ep_len == max_ep_len
+				terminal = d or timeout
+				epoch_ended = t==local_steps_per_epoch-1
+
+				# Also adding to the skill time and overall time, since we're in a while loop now.
+				t_skill += 1                    
+				t+=1
+
+				if terminal or epoch_ended or t>=eval_time_limit:
+
+					if args.evaluate_translated_zs:
+						print("Embed at end of epoch")
+						embed()						
+					
+					if epoch_ended and not(terminal):
+						print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
+					# if trajectory didn't reach terminal state, bootstrap value target
+					if timeout or epoch_ended:
+						_, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
+					else:
+						v = 0
+					buf.finish_path(v)
+					if terminal:
+						# only save EpRet / EpLen if trajectory finished
+						logger.store(EpRet=ep_ret, EpLen=ep_len)
+					o, ep_ret, ep_len = env.reset(), 0, 0
+			
+		if return_eval:
+			return ep_ret, ep_len
+
+	#######################################################
+	# Now train block. 
+	#######################################################
+
+	if True:
+
+
+		#######################################################
+		# Initialize.
+		#######################################################
+
+		if True:
+
+			# Prepare for interaction with environment
+			start_time = time.time()
+
+			# Set global skill time limit.
+			skill_time_limit = 14
+
+			eval_time_limit = 10000000
+			downsample_freq = 20
+
+			if args.evaluate_translated_zs:
+				epochs = 1
+				image_list = []
+				batch_index = 0			
+				translated_zs = np.load(args.translated_z_file)[:,batch_index]
+				# source_variational_dict = np.load(args.source_variational_dict,allow_pickle=True).item()
+				# source_latent_bs = source_variational_dict['latent_b'][:,batch_index]
+				skill_time_limit = 16
+				eval_time_limit = translated_zs.shape[0]*downsample_freq
+
+			skill_time_limit *= downsample_freq
+			eval_episodes = 100
 		
-		# Set global skill time limit.
-		skill_time_limit = 14
-
-		eval_time_limit = 10000000
-		downsample_freq = 20
-
-		if args.evaluate_translated_zs:
-			epochs = 1
-			image_list = []
-			batch_index = 0			
-			translated_zs = np.load(args.translated_z_file)[:,batch_index]
-			# source_variational_dict = np.load(args.source_variational_dict,allow_pickle=True).item()
-			# source_latent_bs = source_variational_dict['latent_b'][:,batch_index]
-			skill_time_limit = 16
-			eval_time_limit = translated_zs.shape[0]*downsample_freq
-
-		skill_time_limit *= downsample_freq
-
-		##########################################
-		# 1) Initialize / reset. 
-		##########################################
+		#######################################################
+		# Now train block. 
+		#######################################################
 
 		for epoch in range(epochs):		
 
-			##########################################
-			# 1) Initialize / reset. (State is actually already reset here.)
-			##########################################
+			# Rollout. 			
+			print("#######################################################")
+			print("Runing Epoch #: ",epoch)        
+			print("#######################################################")
 
-			print("Run Epoch: ",epoch)            
-
-	 		t = 0 
-			# reset hidden state for incremental policy forward.
-			hidden = None
-			terminal = False
-
-			##########################################
-			# 2) While we haven't exceeded timelimit and are still non-terminal:
-			##########################################
-
-
-			while t<local_steps_per_epoch and not(terminal) and t<eval_time_limit:
-				##########################################
-				# 3) Sample z from z policy. 
-				##########################################                
-
-				# Now no longer need a hierarchical actor critic? 
-				# Probably can implement as usual - just assemble appropriate inputs and query high level policy. 
-				# And then query low level policy....? Hmmmmmm, how does update work? 
-				# Probably need to feed high-level policy log probabilities to PPO to get it to work. 
-
-				# Revert to regular forward of Z AC (not receiving tuples).
-				# action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
-				z_action, v, z_logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
-				
-				# # FOR NOW
-				# zset = np.load("/home/tshankar/Research/Code/Z_Set.npy")
-				# if t<len(zset):
-				if args.evaluate_translated_zs:
-					z_action = translated_zs[t//downsample_freq]
-
-				# First reset skill timer. 
-				t_skill = 0
-
-				##########################################
-				# 4) While we haven't exceeded skill timelimit and are still non terminal, and haven't exceeded overall timelimit. 
-				##########################################
-				
-
-				while t_skill<skill_time_limit and not(terminal) and t<local_steps_per_epoch:
-										
-					##########################################
-					# 5) Sample low-level action a from low-level policy. 
-					##########################################
-
-					# 5a) Get joint state from observation.
-				   
-					obs_spec = env.observation_spec()
-					max_gripper_state = 0.042
-
-					if float(robosuite.__version__[:3])>1.:
-						pure_joint_state = env.sim.get_state()[1][:7]						
-						
-						if args.env_name=='Wipe':
-							# here, no gripper, so set dummy joint pos
-							gripper_state = np.array([max_gripper_state/2])
-						else:
-							gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
-					else:
-						
-						pure_joint_state = obs_spec['joint_pos']					
-						gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
-					
-					# Norm gripper state from 0 to 1
-					gripper_state = gripper_state/max_gripper_state
-					# Norm gripper state from -1 to 1. 
-					gripper_state = 2*gripper_state-1
-					joint_state = np.concatenate([pure_joint_state, gripper_state])
-					
-					# Normalize joint state according to joint limits (minmax normaization).
-					normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
-
-					# 5b) Assemble input. 
-					if t==0:
-						low_level_action_numpy = np.zeros_like(normalized_joint_state)                    
-					assembled_states = np.concatenate([normalized_joint_state,low_level_action_numpy])
-					assembled_input = np.concatenate([assembled_states, z_action])
-					torch_assembled_input = torch.tensor(assembled_input).to(device).float().view(-1,1,input_size+latent_z_dimension)
-
-					# 5c) Now actually retrieve action.
-					low_level_action, hidden = lowlevel_policy.incremental_reparam_get_actions(torch_assembled_input, greedy=True, hidden=hidden)
-					low_level_action_numpy = low_level_action.detach().squeeze().squeeze().cpu().numpy()
-
-					# 5d) Unnormalize 
-					# unnormalized_low_level_action_numpy = *joint_limit_range 
-					# UNNORMALIZING ACTIONS! WE'VE NEVER ..DONE THIS BEFORE? 
-					# JUST SCALE UP FOR NOW
-					unnormalized_low_level_action_numpy = args.action_scaling * low_level_action_numpy
-					# 5d) Normalize action for benefit of environment. 
-					# Output of policy is minmax normalized, which is 0-1 range. 
-					# Change to -1 to 1 range. 
-
-					# normalized_low_level_action = low_level_action_numpy
-					normalized_low_level_action = unnormalized_low_level_action_numpy
-					# normalized_low_level_action = 2*low_level_action_numpy-1
-
-
-					##########################################
-					# 6) Step in environment. 
-					##########################################
-
-					# Set low level action.
-					# print("Embed before step..")
-					# embed()
-
-					if args.env_name=='Wipe':
-						next_o, r, d, _ = env.step(normalized_low_level_action[:-1])
-					else:
-						next_o, r, d, _ = env.step(normalized_low_level_action)
-					
-					
-
-					# Logging images
-					if args.evaluate_translated_zs and t%10==0:
-
-						# if float(robosuite.__version__[:3])>1.:
-							# image_list.append(np.flipud(env.sim.render(600,600,camera_name='agentview')))
-						# else:
-						image_list.append(np.flipud(env.sim.render(600,600,camera_name='vizview1')))
-
-					##########################################
-					# 7) Increment counters, reset states, log cummulative rewards, etc. 
-					##########################################
-
-					ep_ret += r
-					ep_len += 1
-
-
-					# save and log
-					# CHANGED: Saving the action tuple in the buffer instead of just the action..
-					# buf.store(o, action_tuple, r, v, logp_tuple)
-					# CHANGING TO STORING Z ACTION AND Z LOGP.   
-					# 
-					
-					buf.store(o, z_action, r, v, z_logp)
-					logger.store(VVals=v)
-					
-					# Update obs (critical!)
-					o = next_o
-
-					timeout = ep_len == max_ep_len
-					terminal = d or timeout
-					epoch_ended = t==local_steps_per_epoch-1
-
-					# Also adding to the skill time and overall time, since we're in a while loop now.
-					t_skill += 1                    
-					t+=1
-
-					if terminal or epoch_ended or t>=eval_time_limit:
-
-						if args.evaluate_translated_zs:
-							print("Embed at end of epoch")
-							embed()						
-						
-						if epoch_ended and not(terminal):
-							print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
-						# if trajectory didn't reach terminal state, bootstrap value target
-						if timeout or epoch_ended:
-							_, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
-						else:
-							v = 0
-						buf.finish_path(v)
-						if terminal:
-							# only save EpRet / EpLen if trajectory finished
-							logger.store(EpRet=ep_ret, EpLen=ep_len)
-						o, ep_ret, ep_len = env.reset(), 0, 0
+			rollout()
 			
 			##########################################
 			# 8) Save, update, and log. 
@@ -670,12 +694,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			# Save model        
 			if (epoch % save_freq == 0) or (epoch == epochs-1):
 				logger.save_state({'env': env}, None)
-
-			# print("Embed after epoch")
-			# embed()
-						
-			# Perform PPO update!
-			# If we have enough buffer items. 
+					
+			# Perform PPO update if we have enough buffer items. 
 			if buf.ptr>=buf.max_size:
 				update()
 
@@ -696,6 +716,28 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				logger.log_tabular('Time', time.time()-start_time)
 				logger.dump_tabular()
 
+		print("#######################################################")
+		print("Finished running training. About to evaluate.")
+		print("#######################################################")
+
+		#######################################################
+		# Now eval block. 
+		#######################################################
+
+		if True:
+			logger = EpochLogger()
+
+			for epoch in range(eval_episodes):
+
+				ep_ret, ep_len = rollout(return_eval=True)
+				
+				print('Episode %d \t EpRet %.3f \t EpLen %d'%(epoch, ep_ret, ep_len))
+
+			# Log info about epoch
+			logger.log_tabular('Epoch', epoch)
+			logger.log_tabular('EpRet', with_min_and_max=True)
+			logger.log_tabular('EpLen', average_only=True)
+			logger.dump_tabular()
 
 
 if __name__ == '__main__':
