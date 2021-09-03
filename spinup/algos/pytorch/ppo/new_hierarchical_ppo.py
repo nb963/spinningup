@@ -497,7 +497,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 			print("Run Epoch: ",epoch)            
 
-			t = 0 
+	 		t = 0 
 			# reset hidden state for incremental policy forward.
 			hidden = None
 			terminal = False
@@ -696,76 +696,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				logger.log_tabular('Time', time.time()-start_time)
 				logger.dump_tabular()
 
-		# #############################################################
-		# # Old form of rollout in training loop. 
-		# #############################################################
 
-		# # Main loop: collect experience in env and update/log each epoch
-		# for epoch in range(epochs):
-		#     for t in range(local_steps_per_epoch):
-
-		#         # CHANGED: Firstly, make sure the policy class implements actions as a tuple of a, z, b, and joint log probability of these. 
-		#         action_tuple, v, logp_tuple = ac.step(torch.as_tensor(o, dtype=torch.float32))
-		#         # CHANGED: Now remember, the action is a tuple of a, z, b. So take a step in the low level environment with the low-level action. 
-		#         next_o, r, d, _ = env.step(action_tuple[0])
-
-		#         ep_ret += r
-		#         ep_len += 1
-
-		#         # save and log
-		#         # CHANGED: Saving the action tuple in the buffer instead of just the action..
-		#         buf.store(o, action_tuple, r, v, logp_tuple)
-		#         logger.store(VVals=v)
-				
-		#         # Update obs (critical!)
-		#         o = next_o
-
-		#         timeout = ep_len == max_ep_len
-		#         terminal = d or timeout
-		#         epoch_ended = t==local_steps_per_epoch-1
-
-		#         if terminal or epoch_ended:
-		#             if epoch_ended and not(terminal):
-		#                 print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
-		#             # if trajectory didn't reach terminal state, bootstrap value target
-		#             if timeout or epoch_ended:
-		#                 _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
-		#             else:
-		#                 v = 0
-		#             buf.finish_path(v)
-		#             if terminal:
-		#                 # only save EpRet / EpLen if trajectory finished
-		#                 logger.store(EpRet=ep_ret, EpLen=ep_len)
-		#             o, ep_ret, ep_len = env.reset(), 0, 0
-
-
-		#     # Save model
-		#     if (epoch % save_freq == 0) or (epoch == epochs-1):
-		#         logger.save_state({'env': env}, None)
-
-		#     # Perform PPO update!
-		#     update()
-
-		#     # Log info about epoch
-		#     logger.log_tabular('Epoch', epoch)
-		#     logger.log_tabular('EpRet', with_min_and_max=True)
-		#     logger.log_tabular('EpLen', average_only=True)
-		#     logger.log_tabular('VVals', with_min_and_max=True)
-		#     logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
-		#     logger.log_tabular('LossPi', average_only=True)
-		#     logger.log_tabular('LossV', average_only=True)
-		#     logger.log_tabular('DeltaLossPi', average_only=True)
-		#     logger.log_tabular('DeltaLossV', average_only=True)
-		#     logger.log_tabular('Entropy', average_only=True)
-		#     logger.log_tabular('KL', average_only=True)
-		#     logger.log_tabular('ClipFrac', average_only=True)
-		#     logger.log_tabular('StopIter', average_only=True)
-		#     logger.log_tabular('Time', time.time()-start_time)
-		#     logger.dump_tabular()
-
-		#     #############################################################
-		#     # End 
-		#     #############################################################
 
 if __name__ == '__main__':
 	import argparse
