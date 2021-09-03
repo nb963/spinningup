@@ -8,7 +8,7 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 from IPython import embed
 from PolicyNetworks import ContinuousPolicyNetwork
 from gym.spaces import Box, Discrete
-import robosuite
+import robosuite, copy
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
@@ -452,7 +452,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 	# Remember, new rollout procedure. 
 	#######################################################
 
-	def rollout(return_eval=False):
+	def rollout(evaluate=False):
 
 		# 1) Initialize. 
 		# 2) While we haven't exceeded timelimit and are still non-terminal:
@@ -595,6 +595,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 				ep_ret += r
 				ep_len += 1
+				ep_ret_copy, ep_len_copy = copy.deepcopy(ep_ret), copy.deepcopy(ep_len)
 
 
 				# save and log
@@ -603,7 +604,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				# CHANGING TO STORING Z ACTION AND Z LOGP.   
 				# 
 				
-				buf.store(o, z_action, r, v, z_logp)
+				if evaluate==False:
+					buf.store(o, z_action, r, v, z_logp)
 				logger.store(VVals=v)
 				
 				# Update obs (critical!)
@@ -636,8 +638,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 						logger.store(EpRet=ep_ret, EpLen=ep_len)
 					o, ep_ret, ep_len = env.reset(), 0, 0
 			
-		if return_eval:
-			return ep_ret, ep_len
+		if evaluate:
+			return ep_ret_copy, ep_len_copy
 
 	#######################################################
 	# Now train block. 
@@ -729,7 +731,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 			for epoch in range(eval_episodes):
 
-				ep_ret, ep_len = rollout(return_eval=True)
+				ep_ret, ep_len = rollout(evaluate=True)
 				
 				print('Episode %d \t EpRet %.3f \t EpLen %d'%(epoch, ep_ret, ep_len))
 
