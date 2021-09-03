@@ -452,7 +452,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 	# Remember, new rollout procedure. 
 	#######################################################
 
-	def rollout(evaluate=False):
+	def rollout(evaluate=False, visualize=False):
 
 		# 1) Initialize. 
 		# 2) While we haven't exceeded timelimit and are still non-terminal:
@@ -472,13 +472,12 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		# reset hidden state for incremental policy forward.
 		hidden = None
 		terminal = False
-		o, ep_ret, ep_len = env.reset(), 0, 0
-			
+		o, ep_ret, ep_len = env.reset(), 0, 0			
+		image_list = []
 
 		##########################################
 		# 2) While we haven't exceeded timelimit and are still non-terminal:
 		##########################################
-
 
 		while t<local_steps_per_epoch and not(terminal) and t<eval_time_limit:
 			##########################################
@@ -582,7 +581,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				
 
 				# Logging images
-				if args.evaluate_translated_zs and t%10==0:
+				if (args.evaluate_translated_zs or visualize) and t%10==0:
 
 					# if float(robosuite.__version__[:3])>1.:
 						# image_list.append(np.flipud(env.sim.render(600,600,camera_name='agentview')))
@@ -638,8 +637,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 						logger.store(EpRet=ep_ret, EpLen=ep_len)
 					o, ep_ret, ep_len = env.reset(), 0, 0
 			
-		if evaluate:
-			return ep_ret_copy, ep_len_copy
+		if evaluate:			
+			return ep_ret_copy, ep_len_copy, image_list
 
 	#######################################################
 	# Now train block. 
@@ -730,9 +729,18 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			logger = EpochLogger()
 
 			for epoch in range(eval_episodes):
-
-				ep_ret, ep_len = rollout(evaluate=True)
 				
+				ep_ret, ep_len, image_list = rollout(evaluate=True, visualize=(epoch==0))
+				if epoch==0:
+
+					logdir = "Logs/{0}".format(args.env_name+"_"+args.run_name)
+
+					path = os.path.join(logdir, "Rollout_Gifs")
+					if not(os.path.isdir(path)):
+						os.mkdir(path)
+
+					imageio.mimsave(os.path.join(path,"Rollout.gif"), image_list)
+					
 				print('Episode %d \t EpRet %.3f \t EpLen %d'%(epoch, ep_ret, ep_len))
 
 			# Log info about epoch
