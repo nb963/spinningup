@@ -8,7 +8,7 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 from IPython import embed
 from PolicyNetworks import ContinuousPolicyNetwork
 from gym.spaces import Box, Discrete
-import robosuite, copy
+import robosuite, copy, imageio
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
@@ -119,21 +119,51 @@ class PPOBuffer:
 	#     # Now return the return_dictionary. 
 	#     return return_dictionary
 
+	# def get(self):
+	# 	"""
+	# 	Call this at the end of an epoch to get all of the data from
+	# 	the buffer, with advantages appropriately normalized (shifted to have
+	# 	mean zero and std one). Also, resets some pointers in the buffer.
+	# 	"""
+	# 	assert self.ptr == self.max_size    # buffer has to be full before you can get
+	# 	self.ptr, self.path_start_idx = 0, 0
+	# 	# the next two lines implement the advantage normalization trick
+	# 	adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
+	# 	self.adv_buf = (self.adv_buf - adv_mean) / adv_std
+	# 	data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
+	# 				adv=self.adv_buf, logp=self.logp_buf)
+	# 	# print("Embed in get")
+	# 	# embed()
+	# 	return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
+
 	def get(self):
 		"""
 		Call this at the end of an epoch to get all of the data from
 		the buffer, with advantages appropriately normalized (shifted to have
 		mean zero and std one). Also, resets some pointers in the buffer.
 		"""
-		assert self.ptr == self.max_size    # buffer has to be full before you can get
-		self.ptr, self.path_start_idx = 0, 0
+		# assert self.ptr == self.max_size    # buffer has to be full before you can get
+		# self.ptr, self.path_start_idx = 0, 0
+	
+		# Select the first ptr elements of the buffer. 
+		self.adv_buf = self.adv_buf[:self.ptr]
+		self.obs_buf = self.obs_buf[:self.ptr]
+		self.act_buf = self.act_buf[:self.ptr]
+		self.ret_buf = self.ret_buf[:self.ptr]
+		self.logp_buf = self.logp_buf[:self.ptr]
+	
 		# the next two lines implement the advantage normalization trick
 		adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
 		self.adv_buf = (self.adv_buf - adv_mean) / adv_std
 		data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
 					adv=self.adv_buf, logp=self.logp_buf)
-		return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
+		
+		# print("Embed in get")
+		# embed()
 
+		self.ptr, self.path_start_idx = 0, 0
+
+		return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
 
 def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
 		steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
@@ -686,7 +716,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			print("Runing Epoch #: ",epoch)        
 			print("#######################################################")
 
-			rollout()
+			rollout(visualize=args.render)
 			
 			##########################################
 			# 8) Save, update, and log. 
@@ -697,25 +727,29 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				logger.save_state({'env': env}, None)
 					
 			# Perform PPO update if we have enough buffer items. 
-			if buf.ptr>=buf.max_size:
-				update()
+			# print("Embed before update.")
+			# embed()
+			
+			# if buf.ptr>=buf.max_size:
+			print("Running update.")
+			update()
 
-				# Log info about epoch
-				logger.log_tabular('Epoch', epoch)
-				logger.log_tabular('EpRet', with_min_and_max=True)
-				logger.log_tabular('EpLen', average_only=True)
-				logger.log_tabular('VVals', with_min_and_max=True)
-				logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
-				logger.log_tabular('LossPi', average_only=True)
-				logger.log_tabular('LossV', average_only=True)
-				logger.log_tabular('DeltaLossPi', average_only=True)
-				logger.log_tabular('DeltaLossV', average_only=True)
-				logger.log_tabular('Entropy', average_only=True)
-				logger.log_tabular('KL', average_only=True)
-				logger.log_tabular('ClipFrac', average_only=True)
-				logger.log_tabular('StopIter', average_only=True)
-				logger.log_tabular('Time', time.time()-start_time)
-				logger.dump_tabular()
+			# Log info about epoch
+			logger.log_tabular('Epoch', epoch)
+			logger.log_tabular('EpRet', with_min_and_max=True)
+			logger.log_tabular('EpLen', average_only=True)
+			logger.log_tabular('VVals', with_min_and_max=True)
+			logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+			logger.log_tabular('LossPi', average_only=True)
+			logger.log_tabular('LossV', average_only=True)
+			logger.log_tabular('DeltaLossPi', average_only=True)
+			logger.log_tabular('DeltaLossV', average_only=True)
+			logger.log_tabular('Entropy', average_only=True)
+			logger.log_tabular('KL', average_only=True)
+			logger.log_tabular('ClipFrac', average_only=True)
+			logger.log_tabular('StopIter', average_only=True)
+			logger.log_tabular('Time', time.time()-start_time)
+			logger.dump_tabular()
 
 		print("#######################################################")
 		print("Finished running training. About to evaluate.")
@@ -730,6 +764,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
 			for epoch in range(eval_episodes):
 				
+				# print("Rollout #",epoch,(epoch==0))
 				ep_ret, ep_len, image_list = rollout(evaluate=True, visualize=(epoch==0))
 				if epoch==0:
 
@@ -739,8 +774,10 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 					if not(os.path.isdir(path)):
 						os.mkdir(path)
 
+					print("Saving Render!")
 					imageio.mimsave(os.path.join(path,"Rollout.gif"), image_list)
-					
+					print("Finished Saving Render!")
+
 				print('Episode %d \t EpRet %.3f \t EpLen %d'%(epoch, ep_ret, ep_len))
 
 			# Log info about epoch
