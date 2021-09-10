@@ -325,8 +325,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			basedir = args.basedir
 			if args.data=='MIME':
 				state_size = 16
-				lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Min.npy"))
-				upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Max.npy"))
+				lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Min.npy"))
+				upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Max.npy"))
 			elif args.data in ['Roboturk','FullRoboturk']:
 				state_size = 8
 				lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
@@ -555,34 +555,11 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 						# here, no gripper, so set dummy joint pos
 						gripper_state = np.array([max_gripper_state/2])
 					else:
-
-						# if args.env_name[:3] == 'Bax':
-
-						# 	# Assembel gripper state from both left and right gripper states. 
-						# 	left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
-						# 	right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
-						# 	gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
-
-						# else:
-						# 	gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
 						gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
 				else:
-									
-					if args.env_name[:3] =='Bax':
-
-						# Assembel gripper state from both left and right gripper states. 
-						left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
-						right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
-						gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
-
-						# Assemble joint states by flipping left and right hands. 
-						pure_joint_state = np.zeros(14)
-						pure_joint_state[:7] = obs_spec['joint_pos'][7:14]
-						pure_joint_state[7:14] = obs_spec['joint_pos'][:7]
-
-					else:
-						pure_joint_state = obs_spec['joint_pos']
-						gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+					
+					pure_joint_state = obs_spec['joint_pos']					
+					gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
 				
 				# Norm gripper state from 0 to 1
 				gripper_state = gripper_state/max_gripper_state
@@ -613,14 +590,10 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				# Output of policy is minmax normalized, which is 0-1 range. 
 				# Change to -1 to 1 range. 
 
-				if args.env_name[:3]=='Bax':
-					# If we're in a baxter environmnet, flip the left and right hand actions.
-					normalized_low_level_action = np.zeros(16)
-					normalized_low_level_action[:7] = unnormalized_low_level_action_numpy[7:14]
-					normalized_low_level_action[7:14] = unnormalized_low_level_action_numpy[:7]
-					normalized_low_level_action[14:] = unnormalized_low_level_action_numpy[14:]
-				else:					
-					normalized_low_level_action = unnormalized_low_level_action_numpy
+				# normalized_low_level_action = low_level_action_numpy
+				normalized_low_level_action = unnormalized_low_level_action_numpy
+				# normalized_low_level_action = 2*low_level_action_numpy-1
+
 
 				##########################################
 				# 6) Step in environment. 

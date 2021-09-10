@@ -199,8 +199,8 @@ def hierarchical_run_policy(env, get_action, max_ep_len=None, num_episodes=100, 
 
     if args.data in ['MIME']:
         state_size = 16
-        lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Min.npy"))
-        upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Max.npy"))
+        lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Min.npy"))
+        upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Max.npy"))
     elif args.data in ['Roboturk','FullRoboturk']:
         state_size = 8
         lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
@@ -347,8 +347,8 @@ def hierarchical_render_episode(env, get_action, max_ep_len=None, args=None):
 
     if args.data in ['MIME']:
         state_size = 16
-        lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Min.npy"))
-        upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Max.npy"))
+        lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Min.npy"))
+        upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Max.npy"))
     elif args.data in ['Roboturk','FullRoboturk']:
         state_size = 8
         lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
