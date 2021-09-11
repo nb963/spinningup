@@ -282,6 +282,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		setup_pytorch_for_mpi()
 
 		# Set up logger and save configuration
+
+		# print("Embedding before logging creation")
+		# embed()
 		logger = EpochLogger(**logger_kwargs)
 		logger.save_config(locals())
 
