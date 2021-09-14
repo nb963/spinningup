@@ -15,7 +15,7 @@ use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
 
-def load_policy_and_env(fpath, itr='last', deterministic=False):
+def load_policy_and_env(fpath, itr='last', deterministic=False, return_policy=False):
     """
     Load a policy from save, whether it's TF or PyTorch, along with RL env.
 
@@ -58,7 +58,10 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     if backend == 'tf1':
         get_action = load_tf_policy(fpath, itr, deterministic)
     else:
-        get_action = load_pytorch_policy(fpath, itr, deterministic)
+        if return_policy:
+            get_action, policy = load_pytorch_policy(fpath, itr, deterministic, return_policy)
+        else:
+            get_action = load_pytorch_policy(fpath, itr, deterministic, return_policy)
 
     # try to load environment from save
     # (sometimes this will fail because the environment could not be pickled)
@@ -68,7 +71,10 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     except:
         env = None
 
-    return env, get_action
+    if return_policy:
+        return env, get_action, policy
+    else:
+        return env, get_action
 
 def load_tf_policy(fpath, itr, deterministic=False):
     """ Load a tensorflow policy saved with Spinning Up Logger."""
@@ -94,7 +100,7 @@ def load_tf_policy(fpath, itr, deterministic=False):
 
     return get_action
 
-def load_pytorch_policy(fpath, itr, deterministic=False):
+def load_pytorch_policy(fpath, itr, deterministic=False, return_policy=False):
     """ Load a pytorch policy saved with Spinning Up Logger."""
     
     fname = osp.join(fpath, 'pyt_save', 'model'+itr+'.pt')
@@ -109,7 +115,10 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
             action = model.act(x)
         return action
 
-    return get_action
+    if return_policy is True:
+        return get_action, model
+    else:
+        return get_action
 
 def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True, hierarchical=False):
 
