@@ -16,6 +16,7 @@ setup(
     install_requires=[
         'cloudpickle==1.2.1',
         #'gym[atari,box2d,classic_control]~=0.13',
+        # 'gym[atari,box2d,classic_control]~=0.13',
         'ipython',
         'joblib',
         'matplotlib==3.1.1',
@@ -28,6 +29,7 @@ setup(
         'seaborn==0.8.1',
         # 'tensorflow>=1.8.0,<2.0',
         # 'torch==1.7',
+        #'torch==1.7.0',
         'tqdm'
     ],
     description="Teaching tools for introducing people to deep RL.",
