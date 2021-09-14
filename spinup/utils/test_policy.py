@@ -70,7 +70,6 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
 
     return env, get_action
 
-
 def load_tf_policy(fpath, itr, deterministic=False):
     """ Load a tensorflow policy saved with Spinning Up Logger."""
 
@@ -94,7 +93,6 @@ def load_tf_policy(fpath, itr, deterministic=False):
     get_action = lambda x : sess.run(action_op, feed_dict={model['x']: x[None,:]})[0]
 
     return get_action
-
 
 def load_pytorch_policy(fpath, itr, deterministic=False):
     """ Load a pytorch policy saved with Spinning Up Logger."""
