@@ -42,10 +42,13 @@ class ExerciseActorCritic(nn.Module):
         self.pi = actor(obs_dim, action_space.shape[0], hidden_sizes, activation)
         self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
 
-    def step(self, obs):
+    def step(self, obs, greedy=False):
         with torch.no_grad():
             pi, _ = self.pi(obs)
-            a = pi.sample()
+            if greedy:
+                a = pi.mean
+            else:
+                a = pi.sample()
             logp_a = pi.log_prob(a)
             v = self.v(obs)
         return a.numpy(), v.numpy(), logp_a.numpy()
