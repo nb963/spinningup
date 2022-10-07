@@ -160,9 +160,10 @@ def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,
     for value in values:
         plt.figure()
         plot_data(data, xaxis=xaxis, value=value, condition=condition, smooth=smooth, estimator=estimator)
-    # plt.show()
-    import os
-    plt.savefig(os.path.join("~/","Trial_Plot.png"))
+    
+    from IPython import embed
+    embed()
+    # plt.savefig(os.path.join("~/","Trial_Plot.png"))
 
 
 def main():
