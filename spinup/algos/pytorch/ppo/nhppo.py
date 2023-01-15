@@ -330,20 +330,21 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				state_size = 16
 				lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Min.npy"))
 				upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Max.npy"))
+				input_size = 2*state_size
 
 			elif args.data in ['Roboturk','FullRoboturk']:
 				state_size = 8
 				lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
-				upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))			
+				upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))
+				input_size = 2*state_size			
 
 			elif args.data=='HAND':
-				state_size = 30
-				upper_joint_limits = np.ones(state_size)
-				lower_joint_limits = np.zeros(state_size)
-				
+				state_size = (obs_dim[0] // 2)
+				lower_joint_limits = np.ones(state_size)
+				upper_joint_limits = np.zeros(state_size)
+				input_size = obs_dim[0]
 
 			joint_limit_range = upper_joint_limits - lower_joint_limits
-			input_size = 2*state_size
 			output_size = state_size
 			#  
 			args.batch_size = 1
@@ -496,30 +497,55 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 
                 # 5a) Get joint state from observation.
                 hand_env_state = env.env.env.sim.get_state()[1]
-                rem_indices = []
-                full_hand_state = []
+                # max_gripper_state = 0.042
 
-                if args.env_name=="door-v0":
-                        finger_joint_state = hand_env_state[0:28]   
-                        rem_indices = [0.2, -0.2]
+                if float(robosuite.__version__[:3])>1.:
+                        pure_joint_state = env.sim.get_state()[1][:7]
 
-                elif args.env_name=="relocate-v0":
-                        finger_joint_state = hand_env_state[0:30]
+                        if args.env_name=='Wipe':
+                                # here, no gripper, so set dummy joint pos
+                                gripper_state = np.array([max_gripper_state/2])
+                        else:
 
-                elif args.env_name=="pen-v0":
-                        finger_joint_state = hand_env_state[0:24]
-                        rem_indices = [0.6,-0.6, 0.6, -0.6, 0.6, -0.6]
+                                # if args.env_name[:3] == 'Bax':
 
-                elif args.env_name=="hammer-v0":
-                        finger_joint_state = hand_env_state[0:26]
-                        finger_joint_state.insert(2, 0.4)
-                        rem_indices = [0.4, -0.4, 0.4]
+                                #       # Assemble gripper state from both left and right gripper states. 
+                                #       left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
+                                #       right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
+                                #       gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
 
-                full_hand_state = np.concatenate([rem_indices, finger_joint_state])
+                                # else:
+                                #       gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
+                                gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
+
+                else:
+
+                        if args.env_name[:3] =='Bax':
+
+                                # Assemble gripper state from both left and right gripper states. 
+                                left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
+                                right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
+                                gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
+
+                                # Assemble joint states by flipping left and right hands. 
+                                pure_joint_state = np.zeros(14)
+                                pure_joint_state[:7] = obs_spec['joint_pos'][7:14]
+                                pure_joint_state[7:14] = obs_spec['joint_pos'][:7]
+
+                        else:
+                                pure_joint_state = obs_spec['joint_pos']
+                                gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+
+                # Norm gripper state from 0 to 1
+                gripper_state = gripper_state/max_gripper_state
+                # Norm gripper state from -1 to 1. 
+                gripper_state = 2*gripper_state-1
+                joint_state = np.concatenate([pure_joint_state, gripper_state])
+
                 # Normalize joint state according to joint limits (minmax normaization).
-                normalized_joint_state = (full_hand_state - lower_joint_limits)/joint_limit_range
+                normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
 
-                return normalized_joint_state
+                return joint_state, normalized_joint_state, gripper_state
 	
 	def rollout_state():
 
@@ -573,7 +599,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		# Normalize joint state according to joint limits (minmax normaization).
 		normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
 		
-		return normalized_joint_state
+		return joint_state, normalized_joint_state, gripper_state	
 
 	def rollout(evaluate=False, visualize=False):
 
@@ -637,9 +663,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				##########################################
 
 				if (args.data == "HAND"):
-					normalized_joint_state = rollout_hand_state()
+					joint_state, normalized_joint_state, gripper_state = rollout_hand_state()
 				else:
-					normalized_joint_state = rollout_state()			
+					joint_state, normalized_joint_state, gripper_state = rollout_state()			
 	
 
 				# 5b) Assemble input. 

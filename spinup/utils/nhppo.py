@@ -6,9 +6,9 @@ from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_pytorch import setup_pytorch_for_mpi, sync_params, mpi_avg_grads
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 from IPython import embed
+from PolicyNetworks import ContinuousPolicyNetwork
 from gym.spaces import Box, Discrete
 import robosuite, copy, imageio
-from PolicyNetworks import ContinuousPolicyNetwork
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
@@ -66,7 +66,6 @@ class PPOBuffer:
 		the whole trajectory to compute advantage estimates with GAE-Lambda,
 		as well as compute the rewards-to-go for each state, to use as
 		the targets for the value function.
-
 		The "last_val" argument should be 0 if the trajectory ended
 		because the agent reached a terminal state (died), and otherwise
 		should be V(s_T), the value function estimated for the last state.
@@ -172,18 +171,14 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 	
 	"""
 	Proximal Policy Optimization (by clipping), 
-
 	with early stopping based on approximate KL
-
 	Args:
 		env_fn : A function which creates a copy of the environment.
 			The environment must satisfy the OpenAI Gym API.
-
 		actor_critic: The constructor method for a PyTorch Module with a 
 			``step`` method, an ``act`` method, a ``pi`` module, and a ``v`` 
 			module. The ``step`` method should accept a batch of observations 
 			and return:
-
 			===========  ================  ======================================
 			Symbol       Shape             Description
 			===========  ================  ======================================
@@ -194,12 +189,9 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 			``logp_a``   (batch,)          | Numpy array of log probs for the
 										   | actions in ``a``.
 			===========  ================  ======================================
-
 			The ``act`` method behaves the same as ``step`` but only returns ``a``.
-
 			The ``pi`` module's forward call should accept a batch of 
 			observations and optionally a batch of actions, and return:
-
 			===========  ================  ======================================
 			Symbol       Shape             Description
 			===========  ================  ======================================
@@ -213,10 +205,8 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 										   | If actions not given, will contain
 										   | ``None``.
 			===========  ================  ======================================
-
 			The ``v`` module's forward call should accept a batch of observations
 			and return:
-
 			===========  ================  ======================================
 			Symbol       Shape             Description
 			===========  ================  ======================================
@@ -224,53 +214,36 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 										   | for the provided observations. (Critical: 
 										   | make sure to flatten this!)
 			===========  ================  ======================================
-
-
 		ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object 
 			you provided to PPO.
-
 		seed (int): Seed for random number generators.
-
 		steps_per_epoch (int): Number of steps of interaction (state-action pairs) 
 			for the agent and the environment in each epoch.
-
 		epochs (int): Number of epochs of interaction (equivalent to
 			number of policy updates) to perform.
-
 		gamma (float): Discount factor. (Always between 0 and 1.)
-
 		clip_ratio (float): Hyperparameter for clipping in the policy objective.
 			Roughly: how far can the new policy go from the old policy while 
 			still profiting (improving the objective function)? The new policy 
 			can still go farther than the clip_ratio says, but it doesn't help
 			on the objective anymore. (Usually small, 0.1 to 0.3.) Typically
 			denoted by :math:`\epsilon`. 
-
 		pi_lr (float): Learning rate for policy optimizer.
-
 		vf_lr (float): Learning rate for value function optimizer.
-
 		train_pi_iters (int): Maximum number of gradient descent steps to take 
 			on policy loss per epoch. (Early stopping may cause optimizer
 			to take fewer than this.)
-
 		train_v_iters (int): Number of gradient descent steps to take on 
 			value function per epoch.
-
 		lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
 			close to 1.)
-
 		max_ep_len (int): Maximum length of trajectory / episode / rollout.
-
 		target_kl (float): Roughly what KL divergence we think is appropriate
 			between new and old policies after an update. This will get used 
 			for early stopping. (Usually small, 0.01 or 0.05.)
-
 		logger_kwargs (dict): Keyword args for EpochLogger.
-
 		save_freq (int): How often (in terms of gap between epochs) to save
 			the current policy and value function.
-
 	"""
 
 	#######################################################
@@ -296,7 +269,7 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 		# Instantiate environment
 		env = env_fn()
 		obs_dim = env.observation_space.shape
-	
+
 		act_dim = env.action_space.shape
 		
 
@@ -330,17 +303,10 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				state_size = 16
 				lower_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Min.npy"))
 				upper_joint_limits = np.load(os.path.join(basedir,"MIME/MIME_Orig_Max.npy"))
-
 			elif args.data in ['Roboturk','FullRoboturk']:
 				state_size = 8
 				lower_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Min.npy"))
-				upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))			
-
-			elif args.data=='HAND':
-				state_size = 30
-				upper_joint_limits = np.ones(state_size)
-				lower_joint_limits = np.zeros(state_size)
-				
+				upper_joint_limits = np.load(os.path.join(basedir,"Roboturk/Roboturk_Max.npy"))
 
 			joint_limit_range = upper_joint_limits - lower_joint_limits
 			input_size = 2*state_size
@@ -491,89 +457,6 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 	#######################################################
 	# Remember, new rollout procedure. 
 	#######################################################
-	
-	def rollout_hand_state():
-
-                # 5a) Get joint state from observation.
-                hand_env_state = env.env.env.sim.get_state()[1]
-                rem_indices = []
-                full_hand_state = []
-
-                if args.env_name=="door-v0":
-                        finger_joint_state = hand_env_state[0:28]   
-                        rem_indices = [0.2, -0.2]
-
-                elif args.env_name=="relocate-v0":
-                        finger_joint_state = hand_env_state[0:30]
-
-                elif args.env_name=="pen-v0":
-                        finger_joint_state = hand_env_state[0:24]
-                        rem_indices = [0.6,-0.6, 0.6, -0.6, 0.6, -0.6]
-
-                elif args.env_name=="hammer-v0":
-                        finger_joint_state = hand_env_state[0:26]
-                        finger_joint_state.insert(2, 0.4)
-                        rem_indices = [0.4, -0.4, 0.4]
-
-                full_hand_state = np.concatenate([rem_indices, finger_joint_state])
-                # Normalize joint state according to joint limits (minmax normaization).
-                normalized_joint_state = (full_hand_state - lower_joint_limits)/joint_limit_range
-
-                return normalized_joint_state
-	
-	def rollout_state():
-
-		# 5a) Get joint state from observation.
-		obs_spec = env.observation_spec()
-		max_gripper_state = 0.042
-
-		if float(robosuite.__version__[:3])>1.:
-			pure_joint_state = env.sim.get_state()[1][:7]
-
-			if args.env_name=='Wipe':
-				# here, no gripper, so set dummy joint pos
-				gripper_state = np.array([max_gripper_state/2])
-			else:
-
-				# if args.env_name[:3] == 'Bax':
-
-				#       # Assemble gripper state from both left and right gripper states. 
-				#       left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
-				#       right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
-				#       gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
-
-				# else:
-				#       gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
-				gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
-		
-		else:
-
-			if args.env_name[:3] =='Bax':
-
-				# Assemble gripper state from both left and right gripper states. 
-				left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
-				right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
-				gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
-
-				# Assemble joint states by flipping left and right hands. 
-				pure_joint_state = np.zeros(14)
-				pure_joint_state[:7] = obs_spec['joint_pos'][7:14]
-				pure_joint_state[7:14] = obs_spec['joint_pos'][:7]
-
-			else:
-				pure_joint_state = obs_spec['joint_pos']
-				gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
-	
-		# Norm gripper state from 0 to 1
-		gripper_state = gripper_state/max_gripper_state
-		# Norm gripper state from -1 to 1. 
-		gripper_state = 2*gripper_state-1
-		joint_state = np.concatenate([pure_joint_state, gripper_state])
-
-		# Normalize joint state according to joint limits (minmax normaization).
-		normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
-		
-		return normalized_joint_state
 
 	def rollout(evaluate=False, visualize=False):
 
@@ -636,11 +519,55 @@ def hierarchical_ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),
 				# 5) Sample low-level action a from low-level policy. 
 				##########################################
 
-				if (args.data == "HAND"):
-					normalized_joint_state = rollout_hand_state()
+				# 5a) Get joint state from observation.
+				
+				obs_spec = env.observation_spec()
+				max_gripper_state = 0.042
+
+				if float(robosuite.__version__[:3])>1.:
+					pure_joint_state = env.sim.get_state()[1][:7]						
+					
+					if args.env_name=='Wipe':
+						# here, no gripper, so set dummy joint pos
+						gripper_state = np.array([max_gripper_state/2])
+					else:
+
+						# if args.env_name[:3] == 'Bax':
+
+						# 	# Assembel gripper state from both left and right gripper states. 
+						# 	left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
+						# 	right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
+						# 	gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
+
+						# else:
+						# 	gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
+						gripper_state = np.array([obs_spec['robot0_gripper_qpos'][0]-obs_spec['robot0_gripper_qpos'][1]])
 				else:
-					normalized_joint_state = rollout_state()			
-	
+									
+					if args.env_name[:3] =='Bax':
+
+						# Assembel gripper state from both left and right gripper states. 
+						left_gripper_state = np.array([obs_spec['left_gripper_qpos'][0]-obs_spec['left_gripper_qpos'][1]])
+						right_gripper_state = np.array([obs_spec['right_gripper_qpos'][0]-obs_spec['right_gripper_qpos'][1]])
+						gripper_state = np.concatenate([right_gripper_state, left_gripper_state])
+
+						# Assemble joint states by flipping left and right hands. 
+						pure_joint_state = np.zeros(14)
+						pure_joint_state[:7] = obs_spec['joint_pos'][7:14]
+						pure_joint_state[7:14] = obs_spec['joint_pos'][:7]
+
+					else:
+						pure_joint_state = obs_spec['joint_pos']
+						gripper_state = np.array([obs_spec['gripper_qpos'][0]-obs_spec['gripper_qpos'][1]])
+				
+				# Norm gripper state from 0 to 1
+				gripper_state = gripper_state/max_gripper_state
+				# Norm gripper state from -1 to 1. 
+				gripper_state = 2*gripper_state-1
+				joint_state = np.concatenate([pure_joint_state, gripper_state])
+				
+				# Normalize joint state according to joint limits (minmax normaization).
+				normalized_joint_state = (joint_state - lower_joint_limits)/joint_limit_range
 
 				# 5b) Assemble input. 
 				if t==0:
